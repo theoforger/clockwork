@@ -32,3 +32,94 @@ pub async fn create_attendee(
 
     Ok(attendee_id)
 }
+
+pub async fn read_attendee(
+    pool: &sqlx::SqlitePool,
+    id: String,
+) -> Result<Option<Attendee>, sqlx::Error> {
+    let attendee = query!(
+        r#"
+        SELECT id, event_id, name, emoji
+        FROM attendees
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(pool)
+    .await?
+    .map(|row| Attendee {
+        id: row.id,
+        event_id: row.event_id,
+        name: row.name,
+        emoji: row.emoji,
+    });
+
+    Ok(attendee)
+}
+
+pub async fn read_attendees_by_event(
+    pool: &sqlx::SqlitePool,
+    event_id: String,
+) -> Result<Vec<Attendee>, sqlx::Error> {
+    let attendees = query!(
+        r#"
+        SELECT id, event_id, name, emoji
+        FROM attendees
+        WHERE event_id = $1
+        "#,
+        event_id
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| Attendee {
+        id: row.id,
+        event_id: row.event_id,
+        name: row.name,
+        emoji: row.emoji,
+    })
+    .collect();
+
+    Ok(attendees)
+}
+
+pub async fn update_attendee(
+    pool: &sqlx::SqlitePool,
+    id: String,
+    name: String,
+    emoji: Option<String>,
+) -> Result<bool, sqlx::Error> {
+    let rows_affected = query!(
+        r#"
+        UPDATE attendees
+        SET name = $1, emoji = $2
+        WHERE id = $3
+        "#,
+        name,
+        emoji,
+        id
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    Ok(rows_affected > 0)
+}
+
+pub async fn delete_attendee(
+    pool: &sqlx::SqlitePool,
+    id: String,
+) -> Result<bool, sqlx::Error> {
+    let rows_affected = query!(
+        r#"
+        DELETE FROM attendees
+        WHERE id = $1
+        "#,
+        id
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    Ok(rows_affected > 0)
+}
