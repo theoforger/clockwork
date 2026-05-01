@@ -1,12 +1,26 @@
 use axum::{Json, extract::State, http::StatusCode};
-use clockwork_dto::create_event;
+use serde::{Serialize,Deserialize};
+use chrono::NaiveDateTime;
 
 use crate::db::events;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Request {
+    pub name: String,
+    pub description: Option<String>,
+    pub starts_after: Option<NaiveDateTime>,
+    pub ends_before: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Response {
+    pub id: String,
+}
+
 pub async fn handler(
     State(pool): State<sqlx::SqlitePool>,
-    Json(req): Json<create_event::Request>,
-) -> Result<(StatusCode, Json<create_event::Response>), StatusCode> {
+    Json(req): Json<Request>,
+) -> Result<(StatusCode, Json<Response>), StatusCode> {
     let id = events::create_event(
         &pool,
         req.name,
@@ -17,5 +31,5 @@ pub async fn handler(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok((StatusCode::CREATED, Json(create_event::Response { id })))
+    Ok((StatusCode::CREATED, Json(Response { id })))
 }

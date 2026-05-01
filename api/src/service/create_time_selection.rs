@@ -3,15 +3,44 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use clockwork_dto::create_time_selection::{self, CreatedTimeSelection};
+use serde::{Serialize,Deserialize};
+use chrono::NaiveDateTime;
 
 use crate::db::{attendees, time_selections};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeSlot {
+    pub start_time: NaiveDateTime,
+    pub end_time: NaiveDateTime,
+    pub comment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Request {
+    pub attendee_name: String,
+    pub attendee_emoji: Option<String>,
+    pub time_slots: Vec<TimeSlot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatedTimeSelection {
+    pub id: String,
+    pub start_time: NaiveDateTime,
+    pub end_time: NaiveDateTime,
+    pub comment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Response {
+    pub attendee_id: String,
+    pub time_selections: Vec<CreatedTimeSelection>,
+}
 
 pub async fn handler(
     State(pool): State<sqlx::SqlitePool>,
     Path(event_id): Path<String>,
-    Json(req): Json<create_time_selection::Request>,
-) -> Result<(StatusCode, Json<create_time_selection::Response>), StatusCode> {
+    Json(req): Json<Request>,
+) -> Result<(StatusCode, Json<Response>), StatusCode> {
     if req.time_slots.is_empty() {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
@@ -43,7 +72,7 @@ pub async fn handler(
 
     Ok((
         StatusCode::CREATED,
-        Json(create_time_selection::Response {
+        Json(Response {
             attendee_id,
             time_selections: created,
         }),

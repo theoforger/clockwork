@@ -3,14 +3,42 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use clockwork_dto::get_event::{self, Attendee, TimeSelection};
+use serde::{Serialize,Deserialize};
+use chrono::NaiveDateTime;
 
 use crate::db::{attendees, events, time_selections};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeSelection {
+    pub id: String,
+    pub start_time: NaiveDateTime,
+    pub end_time: NaiveDateTime,
+    pub comment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Attendee {
+    pub id: String,
+    pub name: String,
+    pub emoji: Option<String>,
+    pub time_selections: Vec<TimeSelection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Response {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub starts_after: Option<NaiveDateTime>,
+    pub ends_before: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub attendees: Vec<Attendee>,
+}
 
 pub async fn handler(
     State(pool): State<sqlx::SqlitePool>,
     Path(event_id): Path<String>,
-) -> Result<Json<get_event::Response>, StatusCode> {
+) -> Result<Json<Response>, StatusCode> {
     let event = events::read_event(&pool, event_id.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -45,7 +73,7 @@ pub async fn handler(
         });
     }
 
-    Ok(Json(get_event::Response {
+    Ok(Json(Response {
         id: event.id,
         name: event.name,
         description: event.description,
