@@ -1,7 +1,8 @@
 [package]
-name = "crown"
+name = "clockwork-web"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clockwork-dto = { path = "../dto" }
 leptos = { version = "0.8.19", features = ["csr"] }

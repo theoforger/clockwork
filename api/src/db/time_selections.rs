@@ -52,8 +52,8 @@ pub async fn read_time_selection(
     .fetch_optional(pool)
     .await?
     .map(|row| TimeSelection {
-        id: row.id,
-        attendee_id: row.attendee_id,
+        id: row.id.expect("time_selection id is never null"),
+        attendee_id: row.attendee_id.expect("attendee_id is never null"),
         start_time: row.start_time,
         end_time: row.end_time,
         comment: row.comment,
@@ -79,8 +79,8 @@ pub async fn read_time_selections_by_attendee(
     .await?
     .into_iter()
     .map(|row| TimeSelection {
-        id: row.id,
-        attendee_id: row.attendee_id,
+        id: row.id.expect("time_selection id is never null"),
+        attendee_id: row.attendee_id.expect("attendee_id is never null"),
         start_time: row.start_time,
         end_time: row.end_time,
         comment: row.comment,

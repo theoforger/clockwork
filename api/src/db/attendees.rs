@@ -48,8 +48,8 @@ pub async fn read_attendee(
     .fetch_optional(pool)
     .await?
     .map(|row| Attendee {
-        id: row.id,
-        event_id: row.event_id,
+        id: row.id.expect("attendee id is never null"),
+        event_id: row.event_id.expect("event_id is never null"),
         name: row.name,
         emoji: row.emoji,
     });
@@ -73,8 +73,8 @@ pub async fn read_attendees_by_event(
     .await?
     .into_iter()
     .map(|row| Attendee {
-        id: row.id,
-        event_id: row.event_id,
+        id: row.id.expect("attendee id is never null"),
+        event_id: row.event_id.expect("event_id is never null"),
         name: row.name,
         emoji: row.emoji,
     })
@@ -106,10 +106,7 @@ pub async fn update_attendee(
     Ok(rows_affected > 0)
 }
 
-pub async fn delete_attendee(
-    pool: &sqlx::SqlitePool,
-    id: String,
-) -> Result<bool, sqlx::Error> {
+pub async fn delete_attendee(pool: &sqlx::SqlitePool, id: String) -> Result<bool, sqlx::Error> {
     let rows_affected = query!(
         r#"
         DELETE FROM attendees

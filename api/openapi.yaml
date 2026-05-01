@@ -1,0 +1,311 @@
+openapi: 3.1.0
+
+info:
+  title: Clockwork
+  version: 0.1.0
+  description: Time scheduling API. A host creates an event and shares the link; attendees submit their available time slots and can see everyone else's selections.
+
+servers:
+  - url: http://localhost:3000
+
+paths:
+  /events:
+    post:
+      summary: Create event
+      description: Creates a new event and returns its ID. The host shares the event link with potential attendees.
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              name: "Team Sync"
+              description: "Picking a time for the quarterly sync"
+              starts_after: "2026-06-01T00:00:00"
+              ends_before: "2026-06-30T23:59:59"
+      responses:
+        '201':
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateEventResponse'
+              example:
+                id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        '500':
+          description: Internal server error
+
+  /events/{event_id}:
+    get:
+      summary: Get event
+      description: Returns the event along with all attendees and their submitted time selections.
+      operationId: getEvent
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetEventResponse'
+              example:
+                id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "Team Sync"
+                description: "Picking a time for the quarterly sync"
+                starts_after: "2026-06-01T00:00:00"
+                ends_before: "2026-06-30T23:59:59"
+                created_at: "2026-05-01T10:00:00"
+                attendees:
+                  - id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    name: "Alice"
+                    emoji: "🦊"
+                    time_selections:
+                      - id: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+                        start_time: "2026-06-10T14:00:00"
+                        end_time: "2026-06-10T15:00:00"
+                        comment: "Works best for me"
+        '404':
+          description: Event not found
+        '500':
+          description: Internal server error
+
+  /events/{event_id}/time-selections:
+    post:
+      summary: Submit time selections
+      description: Registers an attendee for the event and records one or more time slots where they are available. All slots are submitted in a single request.
+      operationId: createTimeSelection
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTimeSelectionRequest'
+            example:
+              attendee_name: "Alice"
+              attendee_emoji: "🦊"
+              time_slots:
+                - start_time: "2026-06-10T14:00:00"
+                  end_time: "2026-06-10T15:00:00"
+                  comment: "Works best for me"
+                - start_time: "2026-06-11T09:00:00"
+                  end_time: "2026-06-11T10:00:00"
+                  comment: null
+      responses:
+        '201':
+          description: Attendee and time selections created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTimeSelectionResponse'
+              example:
+                attendee_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                time_selections:
+                  - id: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+                    start_time: "2026-06-10T14:00:00"
+                    end_time: "2026-06-10T15:00:00"
+                    comment: "Works best for me"
+                  - id: "d4e5f6a7-b8c9-0123-defa-234567890123"
+                    start_time: "2026-06-11T09:00:00"
+                    end_time: "2026-06-11T10:00:00"
+                    comment: null
+        '422':
+          description: Unprocessable — `time_slots` must not be empty
+        '500':
+          description: Internal server error
+
+components:
+  parameters:
+    EventId:
+      name: event_id
+      in: path
+      required: true
+      description: UUID of the event
+      schema:
+        type: string
+        format: uuid
+      example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+  schemas:
+    CreateEventRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name of the event
+        description:
+          type: string
+          nullable: true
+          description: Optional description
+        starts_after:
+          type: string
+          format: date-time
+          nullable: true
+          description: Earliest allowed time slot start (ISO 8601, no timezone)
+        ends_before:
+          type: string
+          format: date-time
+          nullable: true
+          description: Latest allowed time slot end (ISO 8601, no timezone)
+
+    CreateEventResponse:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID of the created event
+
+    TimeSlot:
+      type: object
+      required:
+        - start_time
+        - end_time
+      properties:
+        start_time:
+          type: string
+          format: date-time
+          description: Start of the available time range (ISO 8601, no timezone)
+        end_time:
+          type: string
+          format: date-time
+          description: End of the available time range (ISO 8601, no timezone)
+        comment:
+          type: string
+          nullable: true
+          description: Optional note for this slot
+
+    CreateTimeSelectionRequest:
+      type: object
+      required:
+        - attendee_name
+        - time_slots
+      properties:
+        attendee_name:
+          type: string
+          description: Display name of the attendee
+        attendee_emoji:
+          type: string
+          nullable: true
+          description: Optional emoji used as a profile picture
+        time_slots:
+          type: array
+          minItems: 1
+          description: One or more time slots the attendee is available
+          items:
+            $ref: '#/components/schemas/TimeSlot'
+
+    CreatedTimeSelection:
+      type: object
+      required:
+        - id
+        - start_time
+        - end_time
+      properties:
+        id:
+          type: string
+          format: uuid
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+
+    CreateTimeSelectionResponse:
+      type: object
+      required:
+        - attendee_id
+        - time_selections
+      properties:
+        attendee_id:
+          type: string
+          format: uuid
+          description: UUID of the newly created attendee
+        time_selections:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatedTimeSelection'
+
+    TimeSelectionResponse:
+      type: object
+      required:
+        - id
+        - start_time
+        - end_time
+      properties:
+        id:
+          type: string
+          format: uuid
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+
+    AttendeeResponse:
+      type: object
+      required:
+        - id
+        - name
+        - time_selections
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        emoji:
+          type: string
+          nullable: true
+        time_selections:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSelectionResponse'
+
+    GetEventResponse:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+        - attendees
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        starts_after:
+          type: string
+          format: date-time
+          nullable: true
+        ends_before:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        attendees:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendeeResponse'

@@ -38,10 +38,7 @@ pub async fn create_event(
     Ok(event_id)
 }
 
-pub async fn read_event(
-    pool: &sqlx::SqlitePool,
-    id: String,
-) -> Result<Option<Event>, sqlx::Error> {
+pub async fn read_event(pool: &sqlx::SqlitePool, id: String) -> Result<Option<Event>, sqlx::Error> {
     let event = query!(
         r#"
         SELECT id, name, description, starts_after, ends_before, created_at
@@ -53,12 +50,12 @@ pub async fn read_event(
     .fetch_optional(pool)
     .await?
     .map(|row| Event {
-        id: row.id,
+        id: row.id.expect("event id is never null"),
         name: row.name,
         description: row.description,
         starts_after: row.starts_after,
         ends_before: row.ends_before,
-        created_at: row.created_at,
+        created_at: row.created_at.expect("created_at is never null"),
     });
 
     Ok(event)
@@ -76,12 +73,12 @@ pub async fn read_all_events(pool: &sqlx::SqlitePool) -> Result<Vec<Event>, sqlx
     .await?
     .into_iter()
     .map(|row| Event {
-        id: row.id,
+        id: row.id.expect("event id is never null"),
         name: row.name,
         description: row.description,
         starts_after: row.starts_after,
         ends_before: row.ends_before,
-        created_at: row.created_at,
+        created_at: row.created_at.expect("created_at is never null"),
     })
     .collect();
 
@@ -115,10 +112,7 @@ pub async fn update_event(
     Ok(rows_affected > 0)
 }
 
-pub async fn delete_event(
-    pool: &sqlx::SqlitePool,
-    id: String,
-) -> Result<bool, sqlx::Error> {
+pub async fn delete_event(pool: &sqlx::SqlitePool, id: String) -> Result<bool, sqlx::Error> {
     let rows_affected = query!(
         r#"
         DELETE FROM events
