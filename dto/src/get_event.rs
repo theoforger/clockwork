@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeSelection {
     pub id: String,
     pub start_time: NaiveDateTime,
@@ -9,7 +9,7 @@ pub struct TimeSelection {
     pub comment: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attendee {
     pub id: String,
     pub name: String,
@@ -17,7 +17,7 @@ pub struct Attendee {
     pub time_selections: Vec<TimeSelection>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Response {
     pub id: String,
     pub name: String,

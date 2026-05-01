@@ -3,11 +3,13 @@ mod service;
 
 use axum::{
     Router,
+    http::HeaderValue,
     routing::{get, post},
 };
 use dotenvy::dotenv;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::env;
+use tower_http::cors::CorsLayer;
 
 #[tokio::main]
 async fn main() {
@@ -32,7 +34,14 @@ async fn main() {
             "/events/{event_id}/time-selections",
             post(service::create_time_selection::handler),
         )
-        .with_state(pool);
+        .with_state(pool)
+        .layer(match env::var("ALLOW_ORIGIN") {
+            Ok(origin) => {
+                let value: HeaderValue = origin.parse().expect("ALLOW_ORIGIN is not a valid header value");
+                CorsLayer::new().allow_origin(value)
+            }
+            Err(_) => CorsLayer::default(),
+        });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await

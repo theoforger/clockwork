@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Request {
     pub name: String,
     pub description: Option<String>,
@@ -9,7 +9,7 @@ pub struct Request {
     pub ends_before: Option<NaiveDateTime>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Response {
     pub id: String,
 }
