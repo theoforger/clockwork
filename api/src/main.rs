@@ -3,7 +3,7 @@ mod service;
 
 use axum::{
     Router,
-    http::HeaderValue,
+    http::{HeaderValue, Method, header::CONTENT_TYPE},
     routing::{get, post},
 };
 use dotenvy::dotenv;
@@ -38,7 +38,7 @@ async fn main() {
         .layer(match env::var("ALLOW_ORIGIN") {
             Ok(origin) => {
                 let value: HeaderValue = origin.parse().expect("ALLOW_ORIGIN is not a valid header value");
-                CorsLayer::new().allow_origin(value)
+                CorsLayer::new().allow_origin(value).allow_headers([CONTENT_TYPE])
             }
             Err(_) => CorsLayer::default(),
         });
