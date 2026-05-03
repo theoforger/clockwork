@@ -11,34 +11,36 @@ export interface CreateEventResponse {
   id: string
 }
 
-export interface TimeSlot {
+export interface TimeSlotRequest {
   start_time: string
   end_time: string
+}
+
+export interface SubmitTimeSlotsRequest {
+  name: string
+  emoji?: string | null
   comment?: string | null
+  time_slots: TimeSlotRequest[]
 }
 
-export interface CreateTimeSelectionRequest {
-  attendee_name: string
-  attendee_emoji?: string | null
-  time_slots: TimeSlot[]
-}
-
-export interface CreatedTimeSelection extends TimeSlot {
+export interface TimeSlotResponse {
   id: string
+  start_time: string
+  end_time: string
 }
 
-export interface CreateTimeSelectionResponse {
+export interface SubmitTimeSlotsResponse {
   attendee_id: string
-  time_selections: CreatedTimeSelection[]
+  time_slots: TimeSlotResponse[]
 }
-
-export type TimeSelectionResponse = CreatedTimeSelection
 
 export interface AttendeeResponse {
   id: string
   name: string
   emoji?: string | null
-  time_selections: TimeSelectionResponse[]
+  comment?: string | null
+  created_at: string
+  time_slots: TimeSlotResponse[]
 }
 
 export interface GetEventResponse {
@@ -66,12 +68,12 @@ export async function getEvent(eventId: string): Promise<GetEventResponse> {
   })
 }
 
-export async function createTimeSelection(
+export async function submitTimeSlots(
   eventId: string,
-  payload: CreateTimeSelectionRequest
-): Promise<CreateTimeSelectionResponse> {
-  return apiClient<CreateTimeSelectionResponse>(
-    `/events/${eventId}/time-selections`,
+  payload: SubmitTimeSlotsRequest
+): Promise<SubmitTimeSlotsResponse> {
+  return apiClient<SubmitTimeSlotsResponse>(
+    `/events/${eventId}/time-slots`,
     {
       method: "POST",
       body: JSON.stringify(payload),

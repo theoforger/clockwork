@@ -3,25 +3,26 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use serde::{Serialize,Deserialize};
 use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 
-use crate::db::{attendees, events, time_selections};
+use crate::db::{attendees, events, time_slots};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimeSelection {
+pub struct TimeSlotResponse {
     pub id: String,
     pub start_time: NaiveDateTime,
     pub end_time: NaiveDateTime,
-    pub comment: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Attendee {
+pub struct AttendeeResponse {
     pub id: String,
     pub name: String,
     pub emoji: Option<String>,
-    pub time_selections: Vec<TimeSelection>,
+    pub comment: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub time_slots: Vec<TimeSlotResponse>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +33,7 @@ pub struct Response {
     pub starts_after: Option<NaiveDateTime>,
     pub ends_before: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
-    pub attendees: Vec<Attendee>,
+    pub attendees: Vec<AttendeeResponse>,
 }
 
 pub async fn handler(
@@ -50,26 +51,26 @@ pub async fn handler(
 
     let mut attendee_responses = Vec::with_capacity(attendee_rows.len());
     for attendee in attendee_rows {
-        let selections =
-            time_selections::read_time_selections_by_attendee(&pool, attendee.id.clone())
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let slots = time_slots::read_time_slots_by_attendee(&pool, attendee.id.clone())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let selection_responses = selections
+        let slot_responses = slots
             .into_iter()
-            .map(|s| TimeSelection {
+            .map(|s| TimeSlotResponse {
                 id: s.id,
                 start_time: s.start_time,
                 end_time: s.end_time,
-                comment: s.comment,
             })
             .collect();
 
-        attendee_responses.push(Attendee {
+        attendee_responses.push(AttendeeResponse {
             id: attendee.id,
             name: attendee.name,
             emoji: attendee.emoji,
-            time_selections: selection_responses,
+            comment: attendee.comment,
+            created_at: attendee.created_at,
+            time_slots: slot_responses,
         });
     }
 

@@ -1,12 +1,16 @@
+use chrono::NaiveDateTime;
+
 use sqlx::query;
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Attendee {
-    pub id: String,            // UUID for the attendee
-    pub event_id: String,      // Foreign key referencing events
-    pub name: String,          // Attendee's name
-    pub emoji: Option<String>, // Optional emoji for profile picture
+    pub id: String,                // UUID for the attendee
+    pub event_id: String,          // Foreign key referencing events
+    pub name: String,              // Attendee's name
+    pub emoji: Option<String>,     // Optional emoji for profile picture
+    pub comment: Option<String>,   // Optional comment for this time slot
+    pub created_at: NaiveDateTime, // Time when the attendee made the submission
 }
 
 pub async fn create_attendee(
@@ -14,47 +18,25 @@ pub async fn create_attendee(
     event_id: String,
     name: String,
     emoji: Option<String>,
+    comment: Option<String>,
 ) -> Result<String, sqlx::Error> {
     let attendee_id = Uuid::new_v4().to_string();
 
     query!(
         r#"
-        INSERT INTO attendees (id, event_id, name, emoji)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO attendees (id, event_id, name, emoji, comment)
+        VALUES ($1, $2, $3, $4, $5)
         "#,
         attendee_id,
         event_id,
         name,
-        emoji
+        emoji,
+        comment
     )
     .execute(pool)
     .await?;
 
     Ok(attendee_id)
-}
-
-pub async fn read_attendee(
-    pool: &sqlx::SqlitePool,
-    id: String,
-) -> Result<Option<Attendee>, sqlx::Error> {
-    let attendee = query!(
-        r#"
-        SELECT id, event_id, name, emoji
-        FROM attendees
-        WHERE id = $1
-        "#,
-        id
-    )
-    .fetch_optional(pool)
-    .await?
-    .map(|row| Attendee {
-        id: row.id.expect("attendee id is never null"),
-        event_id: row.event_id.expect("event_id is never null"),
-        name: row.name,
-        emoji: row.emoji,
-    });
-
-    Ok(attendee)
 }
 
 pub async fn read_attendees_by_event(
@@ -63,7 +45,7 @@ pub async fn read_attendees_by_event(
 ) -> Result<Vec<Attendee>, sqlx::Error> {
     let attendees = query!(
         r#"
-        SELECT id, event_id, name, emoji
+        SELECT id, event_id, name, emoji, comment, created_at
         FROM attendees
         WHERE event_id = $1
         "#,
@@ -77,33 +59,12 @@ pub async fn read_attendees_by_event(
         event_id: row.event_id.expect("event_id is never null"),
         name: row.name,
         emoji: row.emoji,
+        comment: row.comment,
+        created_at: row.created_at.expect("created_at is never null"),
     })
     .collect();
 
     Ok(attendees)
-}
-
-pub async fn update_attendee(
-    pool: &sqlx::SqlitePool,
-    id: String,
-    name: String,
-    emoji: Option<String>,
-) -> Result<bool, sqlx::Error> {
-    let rows_affected = query!(
-        r#"
-        UPDATE attendees
-        SET name = $1, emoji = $2
-        WHERE id = $3
-        "#,
-        name,
-        emoji,
-        id
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
-
-    Ok(rows_affected > 0)
 }
 
 pub async fn delete_attendee(pool: &sqlx::SqlitePool, id: String) -> Result<bool, sqlx::Error> {

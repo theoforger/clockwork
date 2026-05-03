@@ -3,7 +3,7 @@ mod service;
 
 use axum::{
     Router,
-    http::{HeaderValue, Method, header::CONTENT_TYPE},
+    http::{HeaderValue, header::CONTENT_TYPE},
     routing::{get, post},
 };
 use dotenvy::dotenv;
@@ -31,14 +31,18 @@ async fn main() {
         .route("/events", post(service::create_event::handler))
         .route("/events/{event_id}", get(service::get_event::handler))
         .route(
-            "/events/{event_id}/time-selections",
-            post(service::create_time_selection::handler),
+            "/events/{event_id}/time-slots",
+            post(service::submit_time_slots::handler),
         )
         .with_state(pool)
         .layer(match env::var("ALLOW_ORIGIN") {
             Ok(origin) => {
-                let value: HeaderValue = origin.parse().expect("ALLOW_ORIGIN is not a valid header value");
-                CorsLayer::new().allow_origin(value).allow_headers([CONTENT_TYPE])
+                let value: HeaderValue = origin
+                    .parse()
+                    .expect("ALLOW_ORIGIN is not a valid header value");
+                CorsLayer::new()
+                    .allow_origin(value)
+                    .allow_headers([CONTENT_TYPE])
             }
             Err(_) => CorsLayer::default(),
         });
