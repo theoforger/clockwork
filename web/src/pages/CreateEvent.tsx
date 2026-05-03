@@ -18,7 +18,7 @@ import { RangePicker } from "@/components/range-picker"
 import { TimePicker } from "@/components/time-picker"
 import { createEvent, type CreateEventRequest } from "@/api/events"
 import { toast } from "sonner"
-import { formatAPI } from "@/lib/date-utils"
+import { formatAPIDate } from "@/lib/date-utils"
 
 function combineDateAndTime(
   date: Date | undefined,
@@ -31,7 +31,7 @@ function combineDateAndTime(
   const local = new Date(date)
   local.setHours(hours, minutes, 0, 0)
 
-  return formatAPI(local)
+  return formatAPIDate(local)
 }
 
 export function CreateEvent() {
