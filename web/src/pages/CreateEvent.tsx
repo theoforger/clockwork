@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RangePicker } from "@/components/range-picker"
 import { TimePicker } from "@/components/time-picker"
+import { ModeToggle } from "@/components/mode-toggle"
 import { createEvent, type CreateEventRequest } from "@/api/events"
 import { toast } from "sonner"
 import { formatAPIDate } from "@/lib/date-utils"
@@ -62,7 +63,9 @@ export function CreateEvent() {
       toast.success("Event created successfully!")
       navigate(`/${data.id}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "An unexpected error occurred")
+      toast.error(
+        err instanceof Error ? err.message : "An unexpected error occurred"
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -70,6 +73,9 @@ export function CreateEvent() {
 
   return (
     <main className="flex min-h-screen items-center justify-center">
+      <div className="fixed top-4 right-4">
+        <ModeToggle />
+      </div>
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <div className="flex w-full justify-center">

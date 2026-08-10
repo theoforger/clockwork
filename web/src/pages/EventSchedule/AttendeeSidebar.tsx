@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { memo, useMemo, useState } from "react"
 import { toast } from "sonner"
 import type { AttendeeResponse } from "@/api/events"
 import { Button } from "@/components/ui/button"
@@ -28,23 +28,34 @@ export interface AttendeeSidebarProps {
     emoji: string,
     comment: string
   ) => Promise<void> | void
+  highlightedAttendeeIds: Set<string>
 }
 
-export function AttendeeSidebar({
+// Memoized so it doesn't re-render on every throttled drag frame — none of
+// its own props change while a drag is in progress.
+export const AttendeeSidebar = memo(function AttendeeSidebar({
   eventName,
   eventDescription,
   attendees,
   showOverlapOnly,
   onShowOverlapOnlyChange,
   onSubmitAvailability,
+  highlightedAttendeeIds,
 }: AttendeeSidebarProps) {
   const [name, setName] = useState("")
   const [emoji, setEmoji] = useState("")
   const [comment, setComment] = useState("")
   const [filter, setFilter] = useState("")
 
-  const filteredAttendees = attendees.filter((a) =>
-    a.name.toLowerCase().includes(filter.toLowerCase())
+  // Re-filtering is wasted work on every hover-driven re-render (this
+  // component re-renders whenever highlightedAttendeeIds changes), since
+  // attendees/filter themselves haven't changed on those renders.
+  const filteredAttendees = useMemo(
+    () =>
+      attendees.filter((a) =>
+        a.name.toLowerCase().includes(filter.toLowerCase())
+      ),
+    [attendees, filter]
   )
 
   const copyLink = () => {
@@ -119,7 +130,13 @@ export function AttendeeSidebar({
               {filteredAttendees.map((a) => (
                 <HoverCard key={a.id} openDelay={100} closeDelay={100}>
                   <HoverCardTrigger asChild>
-                    <div className="flex items-center gap-2 rounded-lg border p-2 transition-colors hover:bg-accent">
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg border p-2 transition-colors duration-150 hover:bg-accent",
+                        highlightedAttendeeIds.has(a.id) &&
+                          "border-primary bg-primary/10"
+                      )}
+                    >
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-sm">
                           {a.emoji || a.name[0].toUpperCase()}
@@ -179,4 +196,4 @@ export function AttendeeSidebar({
       </div>
     </aside>
   )
-}
+})

@@ -5,9 +5,9 @@ import { parseAPIDate } from "@/lib/date-utils"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
 /**
- * Builds a map of slot-start-timestamp -> number of attendees available
- * during that slot, by expanding every attendee's submitted time ranges
- * into individual SLOT_DURATION_MINUTES buckets.
+ * Expands every attendee's submitted time ranges into individual
+ * SLOT_DURATION_MINUTES buckets, keyed by slot-start-timestamp: who's
+ * available in each slot (slotAttendeeIds), and how many (slotMap).
  */
 export function useSlotAggregation(event: GetEventResponse | null) {
   const normalizedEvent = useMemo(() => {
@@ -24,8 +24,10 @@ export function useSlotAggregation(event: GetEventResponse | null) {
     }
   }, [event])
 
-  const slotMap = useMemo(() => {
-    const map = new Map<number, number>()
+  // Map of slot-start-timestamp -> ids of attendees available during that
+  // slot, for highlighting "who's free" in the sidebar on cell hover.
+  const slotAttendeeIds = useMemo(() => {
+    const map = new Map<number, string[]>()
     if (!normalizedEvent) return map
 
     normalizedEvent.attendees.forEach((a) => {
@@ -33,7 +35,9 @@ export function useSlotAggregation(event: GetEventResponse | null) {
         let cursor = ts.start
         while (cursor < ts.end) {
           const key = cursor.getTime()
-          map.set(key, (map.get(key) || 0) + 1)
+          const list = map.get(key)
+          if (list) list.push(a.id)
+          else map.set(key, [a.id])
           cursor = addMinutes(cursor, SLOT_DURATION_MINUTES)
         }
       })
@@ -42,5 +46,14 @@ export function useSlotAggregation(event: GetEventResponse | null) {
     return map
   }, [normalizedEvent])
 
-  return { slotMap }
+  // Attendee count per slot is just the length of its id list — derive it
+  // from slotAttendeeIds instead of re-walking every attendee's time
+  // ranges a second time.
+  const slotMap = useMemo(() => {
+    const map = new Map<number, number>()
+    slotAttendeeIds.forEach((ids, key) => map.set(key, ids.length))
+    return map
+  }, [slotAttendeeIds])
+
+  return { slotMap, slotAttendeeIds }
 }

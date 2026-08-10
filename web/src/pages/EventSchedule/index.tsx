@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 import {
   addWeeks,
-  subWeeks,
   eachDayOfInterval,
   addDays,
   addMinutes,
@@ -19,14 +18,25 @@ import { useSlotAggregation } from "./useSlotAggregation"
 import { useDragSelection } from "./useDragSelection"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
+const EMPTY_ATTENDEE_IDS: Set<string> = new Set()
+
 export function EventSchedule() {
   const { eventId } = useParams<{ eventId: string }>()
 
   const { event, loading, currentWeekStart, setCurrentWeekStart, refetch } =
     useEventData(eventId)
-  const { slotMap } = useSlotAggregation(event)
+  const { slotMap, slotAttendeeIds } = useSlotAggregation(event)
 
   const [showOverlapOnly, setShowOverlapOnly] = useState(false)
+  const [hoveredSlot, setHoveredSlot] = useState<Date | null>(null)
+
+  // Which attendees submitted the currently-hovered slot, so the sidebar
+  // can highlight them instead of showing a per-cell attendee list.
+  const highlightedAttendeeIds = useMemo(() => {
+    if (!hoveredSlot) return EMPTY_ATTENDEE_IDS
+    const ids = slotAttendeeIds.get(hoveredSlot.getTime())
+    return ids ? new Set(ids) : EMPTY_ATTENDEE_IDS
+  }, [hoveredSlot, slotAttendeeIds])
 
   const isOutsideRange = useCallback(
     (time: Date) => {
@@ -52,6 +62,7 @@ export function EventSchedule() {
     selectedSlots,
     setSelectedSlots,
     dragType,
+    isDragging,
     isInDragRange,
     handleMouseDown,
     handleMouseEnter,
@@ -67,42 +78,54 @@ export function EventSchedule() {
     [currentWeekStart]
   )
 
-  const handlePrevWeek = () => setCurrentWeekStart(subWeeks(currentWeekStart, 1))
-  const handleNextWeek = () => setCurrentWeekStart(addWeeks(currentWeekStart, 1))
+  // Stabilized with useCallback: ScheduleGrid and AttendeeSidebar are
+  // memoized, and this component re-renders on every throttled drag frame
+  // (dragEnd lives in useDragSelection, above) — a plain inline function
+  // here would get a new identity on each of those renders and silently
+  // defeat that memoization every time. The functional update form also
+  // means changeWeek never depends on currentWeekStart, so it (and the two
+  // handlers below) stay stable for the component's whole lifetime, not
+  // just between drag frames.
+  const changeWeek = useCallback(
+    (weeks: number) =>
+      setCurrentWeekStart((start) => addWeeks(start, weeks)),
+    [setCurrentWeekStart]
+  )
+  const handlePrevWeek = useCallback(() => changeWeek(-1), [changeWeek])
+  const handleNextWeek = useCallback(() => changeWeek(1), [changeWeek])
 
-  const handleSubmitAvailability = async (
-    name: string,
-    emoji: string,
-    comment: string
-  ) => {
-    if (!name) {
-      toast.error("Please enter your name")
-      return
-    }
-    if (selectedSlots.size === 0) {
-      toast.error("Please select at least one time slot")
-      return
-    }
+  const handleSubmitAvailability = useCallback(
+    async (name: string, emoji: string, comment: string) => {
+      if (!name) {
+        toast.error("Please enter your name")
+        return
+      }
+      if (selectedSlots.size === 0) {
+        toast.error("Please select at least one time slot")
+        return
+      }
 
-    try {
-      await submitTimeSlots(eventId!, {
-        name,
-        emoji,
-        comment,
-        time_slots: Array.from(selectedSlots).map((ts) => ({
-          start_time: formatAPIDate(new Date(ts)),
-          end_time: formatAPIDate(
-            addMinutes(new Date(ts), SLOT_DURATION_MINUTES)
-          ),
-        })),
-      })
-      toast.success("Selection submitted!")
-      refetch()
-      setSelectedSlots(new Set())
-    } catch (err) {
-      toast.error("Failed to submit: " + err)
-    }
-  }
+      try {
+        await submitTimeSlots(eventId!, {
+          name,
+          emoji,
+          comment,
+          time_slots: Array.from(selectedSlots).map((ts) => ({
+            start_time: formatAPIDate(new Date(ts)),
+            end_time: formatAPIDate(
+              addMinutes(new Date(ts), SLOT_DURATION_MINUTES)
+            ),
+          })),
+        })
+        toast.success("Selection submitted!")
+        refetch()
+        setSelectedSlots(new Set())
+      } catch (err) {
+        toast.error("Failed to submit: " + err)
+      }
+    },
+    [selectedSlots, eventId, refetch, setSelectedSlots]
+  )
 
   if (loading)
     return (
@@ -126,6 +149,7 @@ export function EventSchedule() {
         showOverlapOnly={showOverlapOnly}
         onShowOverlapOnlyChange={setShowOverlapOnly}
         onSubmitAvailability={handleSubmitAvailability}
+        highlightedAttendeeIds={highlightedAttendeeIds}
       />
 
       <ScheduleGrid
@@ -139,10 +163,12 @@ export function EventSchedule() {
         totalAttendees={event.attendees.length}
         showOverlapOnly={showOverlapOnly}
         isInDragRange={isInDragRange}
+        isDragging={isDragging}
         dragType={dragType}
         onMouseDown={handleMouseDown}
         onMouseEnter={handleMouseEnter}
         onMouseUp={handleMouseUp}
+        onHoverSlot={setHoveredSlot}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
 /**
@@ -12,6 +12,22 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
   const [dragStart, setDragStart] = useState<Date | null>(null)
   const [dragEnd, setDragEnd] = useState<Date | null>(null)
   const [dragType, setDragType] = useState<"select" | "deselect" | null>(null)
+
+  // `handleMouseEnter` fires once per cell the pointer crosses, which can
+  // happen many times within a single animation frame during a fast drag —
+  // and since the range below is a flat timestamp comparison (it can span
+  // whole days), each update can flip dragPreview for a large slice of the
+  // grid at once. Coalesce updates to at most one per frame via a ref +
+  // rAF, so React only re-renders once per paint instead of once per raw
+  // pointer event.
+  const rafRef = useRef<number | null>(null)
+  const pendingDragEndRef = useRef<Date | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    }
+  }, [])
 
   // Clear selection/drag state on Escape, unless the user is typing.
   useEffect(() => {
@@ -51,6 +67,13 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
     (time: Date) => {
       if (isOutsideRange(time)) return
 
+      // Starting a fresh drag — drop anything left over from a previous one.
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+      pendingDragEndRef.current = null
+
       const key = time.getTime()
       const isSelected = selectedSlots.has(key)
 
@@ -67,19 +90,38 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
       if (!isDragging || !dragStart) return
       if (isOutsideRange(time)) return
 
-      setDragEnd(time)
+      pendingDragEndRef.current = time
+      if (rafRef.current !== null) return // already scheduled this frame
+
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        if (pendingDragEndRef.current) {
+          setDragEnd(pendingDragEndRef.current)
+          pendingDragEndRef.current = null
+        }
+      })
     },
     [isDragging, dragStart, isOutsideRange]
   )
 
   const handleMouseUp = useCallback(() => {
-    if (!dragStart || !dragEnd || !dragType) {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    // The throttled state may be a frame behind — use whatever cell was
+    // actually hovered last, so the committed selection matches the
+    // pointer's real final position.
+    const effectiveDragEnd = pendingDragEndRef.current ?? dragEnd
+    pendingDragEndRef.current = null
+
+    if (!dragStart || !effectiveDragEnd || !dragType) {
       setIsDragging(false)
       return
     }
 
-    const start = Math.min(dragStart.getTime(), dragEnd.getTime())
-    const end = Math.max(dragStart.getTime(), dragEnd.getTime())
+    const start = Math.min(dragStart.getTime(), effectiveDragEnd.getTime())
+    const end = Math.max(dragStart.getTime(), effectiveDragEnd.getTime())
 
     setSelectedSlots((prev) => {
       const next = new Set(prev)
@@ -102,6 +144,7 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
     selectedSlots,
     setSelectedSlots,
     dragType,
+    isDragging,
     isInDragRange,
     handleMouseDown,
     handleMouseEnter,
