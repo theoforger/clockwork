@@ -39,7 +39,6 @@ import {
 } from "@hugeicons/core-free-icons"
 
 const EMOJIS = [
-  "😀",
   "🦊",
   "🐶",
   "🐱",
@@ -53,6 +52,9 @@ const EMOJIS = [
   "🦁",
   "🐮",
   "🐷",
+  "🦝",
+  "🦄",
+  "🐥",
 ]
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const SLOT_DURATION_MINUTES = 30
@@ -248,7 +250,9 @@ export function EventSchedule() {
       const startBoundary = event.starts_after
         ? parseAPIDate(event.starts_after)
         : null
-      const endBoundary = event.ends_before ? parseAPIDate(event.ends_before) : null
+      const endBoundary = event.ends_before
+        ? parseAPIDate(event.ends_before)
+        : null
 
       const slotEnd = addMinutes(time, SLOT_DURATION_MINUTES)
 
@@ -337,7 +341,9 @@ export function EventSchedule() {
         comment,
         time_slots: Array.from(selectedSlots).map((ts) => ({
           start_time: formatAPIDate(new Date(ts)),
-          end_time: formatAPIDate(addMinutes(new Date(ts), SLOT_DURATION_MINUTES)),
+          end_time: formatAPIDate(
+            addMinutes(new Date(ts), SLOT_DURATION_MINUTES)
+          ),
         })),
       })
       toast.success("Selection submitted!")
@@ -524,7 +530,7 @@ export function EventSchedule() {
 
             {HOURS.map((hour) => (
               <React.Fragment key={hour}>
-                {[0, 30].map((minute) => (
+                {[0, SLOT_DURATION_MINUTES].map((minute) => (
                   <React.Fragment key={`${hour}:${minute}`}>
                     <div className="self-center bg-background pr-2 text-right text-[10px] text-muted-foreground">
                       {minute === 0 ? `${hour}:00` : ""}
