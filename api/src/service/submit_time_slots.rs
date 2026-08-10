@@ -3,23 +3,10 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::db::{attendees, time_slots};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimeSlotRequest {
-    pub start_time: NaiveDateTime,
-    pub end_time: NaiveDateTime,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimeSlotResponse {
-    pub id: String,
-    pub start_time: NaiveDateTime,
-    pub end_time: NaiveDateTime,
-}
+use crate::db::{attendees, events, time_slots};
+use crate::dto::{TimeSlotRequest, TimeSlotResponse};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttendeeRequest {
@@ -44,14 +31,25 @@ pub async fn handler(
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
 
-    let attendee_id = attendees::create_attendee(&pool, event_id, req.name, req.emoji, req.comment)
+    events::read_event(&pool, event_id.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let mut tx = pool
+        .begin()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let attendee_id =
+        attendees::create_attendee(&mut *tx, event_id, req.name, req.emoji, req.comment)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mut created = Vec::with_capacity(req.time_slots.len());
     for slot in req.time_slots {
         let id = time_slots::create_time_slot(
-            &pool,
+            &mut *tx,
             attendee_id.clone(),
             slot.start_time,
             slot.end_time,
@@ -65,6 +63,10 @@ pub async fn handler(
             end_time: slot.end_time,
         });
     }
+
+    tx.commit()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok((
         StatusCode::CREATED,

@@ -10,12 +10,15 @@ pub struct TimeSlot {
     pub end_time: NaiveDateTime,   // End time of the time slot
 }
 
-pub async fn create_time_slot(
-    pool: &sqlx::SqlitePool,
+pub async fn create_time_slot<'e, E>(
+    executor: E,
     attendee_id: String,
     start_time: NaiveDateTime,
     end_time: NaiveDateTime,
-) -> Result<String, sqlx::Error> {
+) -> Result<String, sqlx::Error>
+where
+    E: sqlx::SqliteExecutor<'e>,
+{
     let time_slot_id = Uuid::new_v4().to_string();
 
     query!(
@@ -28,24 +31,25 @@ pub async fn create_time_slot(
         start_time,
         end_time
     )
-    .execute(pool)
+    .execute(executor)
     .await?;
 
     Ok(time_slot_id)
 }
 
-pub async fn read_time_slots_by_attendee(
+pub async fn read_time_slots_by_event(
     pool: &sqlx::SqlitePool,
-    attendee_id: String,
+    event_id: String,
 ) -> Result<Vec<TimeSlot>, sqlx::Error> {
     let time_slots = query!(
         r#"
-        SELECT id, attendee_id, start_time, end_time
+        SELECT time_slots.id, time_slots.attendee_id, time_slots.start_time, time_slots.end_time
         FROM time_slots
-        WHERE attendee_id = $1
-        ORDER BY start_time ASC
+        INNER JOIN attendees ON attendees.id = time_slots.attendee_id
+        WHERE attendees.event_id = $1
+        ORDER BY time_slots.attendee_id, time_slots.start_time ASC
         "#,
-        attendee_id
+        event_id
     )
     .fetch_all(pool)
     .await?
@@ -59,19 +63,4 @@ pub async fn read_time_slots_by_attendee(
     .collect();
 
     Ok(time_slots)
-}
-
-pub async fn delete_time_slot(pool: &sqlx::SqlitePool, id: String) -> Result<bool, sqlx::Error> {
-    let rows_affected = query!(
-        r#"
-        DELETE FROM time_slots
-        WHERE id = $1
-        "#,
-        id
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
-
-    Ok(rows_affected > 0)
 }

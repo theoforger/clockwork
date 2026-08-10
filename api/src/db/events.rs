@@ -61,17 +61,3 @@ pub async fn read_event(pool: &sqlx::SqlitePool, id: String) -> Result<Option<Ev
     Ok(event)
 }
 
-pub async fn delete_event(pool: &sqlx::SqlitePool, id: String) -> Result<bool, sqlx::Error> {
-    let rows_affected = query!(
-        r#"
-        DELETE FROM events
-        WHERE id = $1
-        "#,
-        id
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
-
-    Ok(rows_affected > 0)
-}

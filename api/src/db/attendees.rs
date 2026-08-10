@@ -13,13 +13,16 @@ pub struct Attendee {
     pub created_at: NaiveDateTime, // Time when the attendee made the submission
 }
 
-pub async fn create_attendee(
-    pool: &sqlx::SqlitePool,
+pub async fn create_attendee<'e, E>(
+    executor: E,
     event_id: String,
     name: String,
     emoji: Option<String>,
     comment: Option<String>,
-) -> Result<String, sqlx::Error> {
+) -> Result<String, sqlx::Error>
+where
+    E: sqlx::SqliteExecutor<'e>,
+{
     let attendee_id = Uuid::new_v4().to_string();
 
     query!(
@@ -33,7 +36,7 @@ pub async fn create_attendee(
         emoji,
         comment
     )
-    .execute(pool)
+    .execute(executor)
     .await?;
 
     Ok(attendee_id)
@@ -67,17 +70,3 @@ pub async fn read_attendees_by_event(
     Ok(attendees)
 }
 
-pub async fn delete_attendee(pool: &sqlx::SqlitePool, id: String) -> Result<bool, sqlx::Error> {
-    let rows_affected = query!(
-        r#"
-        DELETE FROM attendees
-        WHERE id = $1
-        "#,
-        id
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
-
-    Ok(rows_affected > 0)
-}

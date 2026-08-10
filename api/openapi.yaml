@@ -34,6 +34,10 @@ paths:
                 $ref: '#/components/schemas/CreateEventResponse'
               example:
                 id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        '400':
+          description: Malformed JSON body
+        '422':
+          description: Request body does not match the expected schema (e.g. missing `name`)
         '500':
           description: Internal server error
 
@@ -111,8 +115,10 @@ paths:
                   - id: "d4e5f6a7-b8c9-0123-defa-234567890123"
                     start_time: "2026-06-11T09:00:00"
                     end_time: "2026-06-11T10:00:00"
+        '400':
+          description: Malformed JSON body
         '422':
-          description: Unprocessable — `time_slots` must not be empty
+          description: Request body does not match the expected schema, or `time_slots` is empty
         '500':
           description: Internal server error
 
@@ -238,6 +244,8 @@ components:
       required:
         - id
         - name
+        - emoji
+        - comment
         - created_at
         - time_slots
       properties:
@@ -267,6 +275,9 @@ components:
       required:
         - id
         - name
+        - description
+        - starts_after
+        - ends_before
         - created_at
         - attendees
       properties:
