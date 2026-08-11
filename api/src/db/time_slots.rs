@@ -37,6 +37,26 @@ where
     Ok(time_slot_id)
 }
 
+pub async fn delete_time_slots_by_attendee<'e, E>(
+    executor: E,
+    attendee_id: String,
+) -> Result<(), sqlx::Error>
+where
+    E: sqlx::SqliteExecutor<'e>,
+{
+    query!(
+        r#"
+        DELETE FROM time_slots
+        WHERE attendee_id = $1
+        "#,
+        attendee_id
+    )
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn read_time_slots_by_event(
     pool: &sqlx::SqlitePool,
     event_id: String,

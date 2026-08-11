@@ -3,6 +3,7 @@ import { startOfWeek, isBefore } from "date-fns"
 import { toast } from "sonner"
 import { getEvent, type GetEventResponse } from "@/api/events"
 import { parseAPIDate } from "@/lib/date-utils"
+import { setLastEventId } from "@/lib/session"
 
 /**
  * Fetches the event (and its attendees/time slots) and picks a sensible
@@ -20,6 +21,9 @@ export function useEventData(eventId: string | undefined) {
       setLoading(true)
       const data = await getEvent(eventId)
       setEvent(data)
+      // Remember this as the browser's active event so the base URL can
+      // jump back into it later — only once we know it actually exists.
+      setLastEventId(data.id)
 
       if (data.starts_after) {
         setCurrentWeekStart(startOfWeek(parseAPIDate(data.starts_after)))

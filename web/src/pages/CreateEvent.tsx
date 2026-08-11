@@ -20,6 +20,7 @@ import { ModeToggle } from "@/components/mode-toggle"
 import { createEvent, type CreateEventRequest } from "@/api/events"
 import { toast } from "sonner"
 import { formatAPIDate } from "@/lib/date-utils"
+import { getLastEventId } from "@/lib/session"
 
 function combineDateAndTime(
   date: Date | undefined,
@@ -37,6 +38,17 @@ function combineDateAndTime(
 
 export function CreateEvent() {
   const navigate = useNavigate()
+
+  // If this browser already has an active event (from a previous visit),
+  // jump straight back into it instead of showing a blank create form.
+  // Read once via a lazy initializer so the redirect decision is made
+  // before the first paint — no flash of the form in between.
+  const [lastEventId] = useState(() => getLastEventId())
+
+  React.useEffect(() => {
+    if (lastEventId) navigate(`/${lastEventId}`, { replace: true })
+  }, [lastEventId, navigate])
+
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(
@@ -70,6 +82,9 @@ export function CreateEvent() {
       setIsSubmitting(false)
     }
   }
+
+  // Redirecting — render nothing rather than flashing the create form.
+  if (lastEventId) return null
 
   return (
     <main className="flex min-h-screen items-center justify-center">

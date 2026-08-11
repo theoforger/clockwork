@@ -42,6 +42,31 @@ where
     Ok(attendee_id)
 }
 
+/// Deletes an attendee, scoped to the given event so a caller can't delete
+/// an attendee belonging to a different event by guessing/reusing an id.
+/// Returns whether a row was actually deleted.
+pub async fn delete_attendee_by_event<'e, E>(
+    executor: E,
+    event_id: String,
+    attendee_id: String,
+) -> Result<bool, sqlx::Error>
+where
+    E: sqlx::SqliteExecutor<'e>,
+{
+    let result = query!(
+        r#"
+        DELETE FROM attendees
+        WHERE id = $1 AND event_id = $2
+        "#,
+        attendee_id,
+        event_id
+    )
+    .execute(executor)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn read_attendees_by_event(
     pool: &sqlx::SqlitePool,
     event_id: String,

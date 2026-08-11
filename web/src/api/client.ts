@@ -18,5 +18,12 @@ export async function apiClient<T>(
     throw new Error(`API error: ${response.status}`)
   }
 
+  // DELETE endpoints return 204 No Content — .json() would throw on the
+  // empty body, so skip it and hand back `undefined` (callers that expect
+  // no data type this as Promise<void>).
+  if (response.status === 204) {
+    return undefined as T
+  }
+
   return response.json()
 }

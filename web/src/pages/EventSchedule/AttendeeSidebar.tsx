@@ -9,12 +9,24 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Copy01Icon, FilterIcon } from "@hugeicons/core-free-icons"
+import { Copy01Icon, FilterIcon, PlusSignIcon } from "@hugeicons/core-free-icons"
 import { EMOJIS } from "./constants"
 
 export interface AttendeeSidebarProps {
@@ -29,6 +41,12 @@ export interface AttendeeSidebarProps {
     comment: string
   ) => Promise<void> | void
   highlightedAttendeeIds: Set<string>
+  // Non-null once this browser has a remembered submission for this event
+  // (see useSubmittedAttendee) — locks the form to that submission instead
+  // of a fresh one.
+  submittedAttendee: AttendeeResponse | null
+  onDeleteSubmission: () => Promise<void> | void
+  onStartNewEvent: () => void
 }
 
 // Memoized so it doesn't re-render on every throttled drag frame — none of
@@ -41,11 +59,24 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
   onShowOverlapOnlyChange,
   onSubmitAvailability,
   highlightedAttendeeIds,
+  submittedAttendee,
+  onDeleteSubmission,
+  onStartNewEvent,
 }: AttendeeSidebarProps) {
   const [name, setName] = useState("")
   const [emoji, setEmoji] = useState("")
   const [comment, setComment] = useState("")
   const [filter, setFilter] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Once this browser has a submission on record, the form displays and
+  // locks to *that* data rather than whatever's in the (untouched, since
+  // the inputs are disabled) local state above.
+  const isLocked = !!submittedAttendee
+  const displayName = isLocked ? submittedAttendee.name : name
+  const displayEmoji = isLocked ? (submittedAttendee.emoji ?? "") : emoji
+  const displayComment = isLocked ? (submittedAttendee.comment ?? "") : comment
 
   // Re-filtering is wasted work on every hover-driven re-render (this
   // component re-renders whenever highlightedAttendeeIds changes), since
@@ -64,14 +95,130 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
   }
 
   const handleSubmit = async () => {
-    await onSubmitAvailability(name, emoji, comment)
+    setIsSubmitting(true)
+    try {
+      await onSubmitAvailability(name, emoji, comment)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      await onDeleteSubmission()
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const lockableFields = (
+    <div className={cn("space-y-2 rounded-lg", isLocked && "cursor-not-allowed")}>
+      <Input
+        placeholder="Your name"
+        value={displayName}
+        onChange={(e) => setName(e.target.value)}
+        disabled={isLocked}
+      />
+      <div className="flex flex-wrap gap-1">
+        {EMOJIS.map((e) => (
+          <button
+            key={e}
+            type="button"
+            disabled={isLocked}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-md text-xl transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40",
+              displayEmoji === e && "bg-muted ring-2 ring-primary"
+            )}
+            onClick={() => setEmoji(e === emoji ? "" : e)}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+      <Input
+        placeholder="Optional comment"
+        value={displayComment ?? ""}
+        onChange={(e) => setComment(e.target.value)}
+        disabled={isLocked}
+      />
+    </div>
+  )
+
+  const formFields = (
+    <div className="space-y-2">
+      {isLocked ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{lockableFields}</TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-56 text-center">
+            Please delete your existing submission to create a new one
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        lockableFields
+      )}
+
+      {isLocked ? (
+        <Button
+          variant="destructive"
+          className="w-full"
+          onClick={handleDelete}
+          disabled={isDeleting}
+        >
+          {isDeleting ? "Deleting..." : "Delete My Submission"}
+        </Button>
+      ) : (
+        <Button
+          className="w-full"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Submitting..." : "Submit My Availability"}
+        </Button>
+      )}
+    </div>
+  )
 
   return (
     <aside className="flex w-80 flex-col border-r bg-card p-4 shadow-sm">
       <div className="flex h-full flex-col space-y-4">
         <div>
-          <h2 className="truncate text-xl font-bold">{eventName}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="truncate text-xl font-bold">{eventName}</h2>
+            <AlertDialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0"
+                      aria-label="New Event"
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} size={16} />
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">New Event</TooltipContent>
+              </Tooltip>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Start a new event?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Make sure you&apos;ve saved this event&apos;s URL
+                    somewhere first — once you leave, this page won&apos;t
+                    bring you back to it. You&apos;ll need the link to return.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onStartNewEvent}>
+                    I&apos;ve saved it, continue
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
           {eventDescription && (
             <p className="line-clamp-2 text-sm text-muted-foreground">
               {eventDescription}
@@ -79,35 +226,7 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
           )}
         </div>
 
-        <div className="space-y-2">
-          <Input
-            placeholder="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <div className="flex flex-wrap gap-1">
-            {EMOJIS.map((e) => (
-              <button
-                key={e}
-                className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-md text-xl transition-colors hover:bg-muted",
-                  emoji === e && "bg-muted ring-2 ring-primary"
-                )}
-                onClick={() => setEmoji(e === emoji ? "" : e)}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-          <Input
-            placeholder="Optional comment"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          <Button className="w-full" onClick={handleSubmit}>
-            Submit My Availability
-          </Button>
-        </div>
+        {formFields}
 
         <Separator />
 

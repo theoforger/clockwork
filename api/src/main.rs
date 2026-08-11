@@ -4,8 +4,8 @@ mod service;
 
 use axum::{
     Router,
-    http::{HeaderValue, header::CONTENT_TYPE},
-    routing::{get, post},
+    http::{HeaderValue, Method, header::CONTENT_TYPE},
+    routing::{delete, get, post},
 };
 use dotenvy::dotenv;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -35,6 +35,10 @@ async fn main() {
             "/events/{event_id}/time-slots",
             post(service::submit_time_slots::handler),
         )
+        .route(
+            "/events/{event_id}/attendees/{attendee_id}",
+            delete(service::delete_attendee::handler),
+        )
         .with_state(pool)
         .layer(match env::var("ALLOW_ORIGIN") {
             Ok(origin) => {
@@ -44,8 +48,11 @@ async fn main() {
                 CorsLayer::new()
                     .allow_origin(value)
                     .allow_headers([CONTENT_TYPE])
+                    .allow_methods([Method::GET, Method::POST, Method::DELETE])
             }
-            Err(_) => CorsLayer::default(),
+            Err(_) => CorsLayer::new()
+                .allow_headers([CONTENT_TYPE])
+                .allow_methods([Method::GET, Method::POST, Method::DELETE]),
         });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

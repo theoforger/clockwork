@@ -80,3 +80,12 @@ export async function submitTimeSlots(
     }
   )
 }
+
+export async function deleteAttendee(
+  eventId: string,
+  attendeeId: string
+): Promise<void> {
+  await apiClient<void>(`/events/${eventId}/attendees/${attendeeId}`, {
+    method: "DELETE",
+  })
+}

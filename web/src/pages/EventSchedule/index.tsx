@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import {
   addWeeks,
   eachDayOfInterval,
@@ -10,22 +10,27 @@ import {
 } from "date-fns"
 import { submitTimeSlots } from "@/api/events"
 import { parseAPIDate, formatAPIDate } from "@/lib/date-utils"
+import { clearLastEventId } from "@/lib/session"
 import { toast } from "sonner"
 import { AttendeeSidebar } from "./AttendeeSidebar"
 import { ScheduleGrid } from "./ScheduleGrid"
 import { useEventData } from "./useEventData"
 import { useSlotAggregation } from "./useSlotAggregation"
 import { useDragSelection } from "./useDragSelection"
+import { useSubmittedAttendee } from "./useSubmittedAttendee"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
 const EMPTY_ATTENDEE_IDS: Set<string> = new Set()
 
 export function EventSchedule() {
   const { eventId } = useParams<{ eventId: string }>()
+  const navigate = useNavigate()
 
   const { event, loading, currentWeekStart, setCurrentWeekStart, refetch } =
     useEventData(eventId)
   const { slotMap, slotAttendeeIds } = useSlotAggregation(event)
+  const { submittedAttendee, rememberSubmission, deleteSubmission } =
+    useSubmittedAttendee(eventId, event, refetch)
 
   const [showOverlapOnly, setShowOverlapOnly] = useState(false)
   const [hoveredSlot, setHoveredSlot] = useState<Date | null>(null)
@@ -106,7 +111,7 @@ export function EventSchedule() {
       }
 
       try {
-        await submitTimeSlots(eventId!, {
+        const response = await submitTimeSlots(eventId!, {
           name,
           emoji,
           comment,
@@ -117,6 +122,9 @@ export function EventSchedule() {
             ),
           })),
         })
+        // Remember this submission so a later visit finds the form already
+        // locked to it instead of offering a fresh (duplicate) submission.
+        rememberSubmission(response.attendee_id)
         toast.success("Selection submitted!")
         refetch()
         setSelectedSlots(new Set())
@@ -124,8 +132,16 @@ export function EventSchedule() {
         toast.error("Failed to submit: " + err)
       }
     },
-    [selectedSlots, eventId, refetch, setSelectedSlots]
+    [selectedSlots, eventId, refetch, setSelectedSlots, rememberSubmission]
   )
+
+  // "New Event": clear the cookie that bounces the base URL back into this
+  // event, then leave — the confirmation dialog (in AttendeeSidebar) is
+  // what actually gates calling this.
+  const handleStartNewEvent = useCallback(() => {
+    clearLastEventId()
+    navigate("/")
+  }, [navigate])
 
   if (loading)
     return (
@@ -150,6 +166,9 @@ export function EventSchedule() {
         onShowOverlapOnlyChange={setShowOverlapOnly}
         onSubmitAvailability={handleSubmitAvailability}
         highlightedAttendeeIds={highlightedAttendeeIds}
+        submittedAttendee={submittedAttendee}
+        onDeleteSubmission={deleteSubmission}
+        onStartNewEvent={handleStartNewEvent}
       />
 
       <ScheduleGrid
