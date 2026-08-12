@@ -1,6 +1,6 @@
 use axum::{Json, extract::State, http::StatusCode};
-use serde::{Serialize,Deserialize};
 use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 
 use crate::db::events;
 

@@ -1,4 +1,11 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { toast } from "sonner"
 import type { AttendeeResponse } from "@/api/events"
 import { Button } from "@/components/ui/button"
@@ -295,8 +302,8 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
                 <AlertDialogTitle>Start a new event?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Make sure you&apos;ve saved this event&apos;s URL somewhere
-                  first — once you leave, this page won&apos;t bring you back
-                  to it. You&apos;ll need the link to return.
+                  first — once you leave, this page won&apos;t bring you back to
+                  it. You&apos;ll need the link to return.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -12,7 +12,10 @@ use crate::dto::TimeSlotRequest;
 /// The frontend already keeps users from dragging out-of-range selections
 /// on the grid, but that's a UI convenience running against a client the
 /// server doesn't control — this is what actually enforces the boundary.
-pub fn validate_time_slots(event: &Event, time_slots: &[TimeSlotRequest]) -> Result<(), StatusCode> {
+pub fn validate_time_slots(
+    event: &Event,
+    time_slots: &[TimeSlotRequest],
+) -> Result<(), StatusCode> {
     for slot in time_slots {
         if slot.end_time <= slot.start_time {
             return Err(StatusCode::UNPROCESSABLE_ENTITY);

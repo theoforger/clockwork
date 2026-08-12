@@ -26,10 +26,9 @@ pub async fn handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let deleted =
-        attendees::delete_attendee_by_event(&mut *tx, event_id, attendee_id, token)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let deleted = attendees::delete_attendee_by_event(&mut *tx, event_id, attendee_id, token)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !deleted {
         // Also rolls back the time slot delete above — the only way this

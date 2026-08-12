@@ -4,10 +4,10 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct TimeSlot {
-    pub id: String,                // UUID for the time slot
-    pub attendee_id: String,       // Foreign key referencing attendees
-    pub start_time: NaiveDateTime, // Start time of the time slot
-    pub end_time: NaiveDateTime,   // End time of the time slot
+    pub id: String,
+    pub attendee_id: String,
+    pub start_time: NaiveDateTime,
+    pub end_time: NaiveDateTime,
 }
 
 pub async fn create_time_slot<'e, E>(

@@ -1,0 +1,90 @@
+# ⏱️ Clockwork
+
+A When2meet-style scheduling tool. A host creates an event with a date range, shares the link,
+and attendees mark the time slots they're available for. Everyone can see the combined
+availability at a glance.
+
+- **`api/`** — Rust backend (Axum + SQLite)
+- **`web/`** — React + TypeScript frontend (Vite, Tailwind, shadcn/ui)
+
+## How it works
+
+1. A host creates an event (name, description, and an allowed date range).
+2. The host shares the event link with attendees.
+3. Each attendee submits a name, an emoji, an optional comment, and the time slots they're
+   free. A submission token (returned to the attendee's browser) lets them edit or delete
+   their own response later, without an account.
+4. Everyone viewing the event sees every attendee's availability overlaid on one grid.
+5. Events past their end date are periodically swept and removed by a background cleanup job.
+
+## Running with Docker Compose
+
+This is the easiest way to run the full stack:
+
+```bash
+cp .env.example .env
+# edit .env if you're not running on localhost
+docker compose up --build
+```
+
+- Web UI: http://localhost:8080
+- API: http://localhost:3000
+
+`API_BASE_URL` and `WEB_BASE_URL` in `.env` must be URLs reachable from the *browser*, since
+`API_BASE_URL` is baked into the frontend bundle at build time and `WEB_BASE_URL` is used as
+the API's CORS `ALLOW_ORIGIN`. See `.env.example` for details.
+
+## Running locally
+
+### API (`api/`)
+
+Requires Rust and `sqlite3`.
+
+```bash
+cd api
+cp .example.env .env   # adjust DATABASE_URL / ALLOW_ORIGIN as needed
+cargo run
+```
+
+Migrations in `api/migrations` run automatically on startup. The API listens on port `3000`.
+
+Key environment variables:
+
+| Variable | Description | Default |
+|---|---|---|
+| `DATABASE_URL` | SQLite connection string | — (required) |
+| `ALLOW_ORIGIN` | Origin allowed via CORS | none (CORS disabled) |
+| `EVENT_CLEANUP_INTERVAL_SECS` | How often expired events are swept | `3600` |
+
+### Web (`web/`)
+
+Requires Node.js and `pnpm`.
+
+```bash
+cd web
+cp example.env .env   # set VITE_API_BASE_URL if the API isn't on localhost:3000
+pnpm install
+pnpm dev
+```
+
+Other useful scripts: `pnpm build`, `pnpm lint`, `pnpm format`, `pnpm typecheck`.
+
+## API
+
+The HTTP API is documented in [`api/openapi.yaml`](api/openapi.yaml). Endpoints:
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/events` | Create an event |
+| `GET` | `/events/{event_id}` | Get an event with all attendees and time slots |
+| `POST` | `/events/{event_id}/time-slots` | Submit an attendee's availability |
+| `PUT` | `/events/{event_id}/attendees/{attendee_id}` | Edit an attendee's submission |
+| `DELETE` | `/events/{event_id}/attendees/{attendee_id}` | Delete an attendee's submission |
+
+Editing or deleting a submission requires the submission token issued when it was created.
+
+## Tech stack
+
+- **API**: Rust, Axum, SQLx (SQLite), Tokio
+- **Web**: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router
+- **Deployment**: Docker Compose, Caddy (serving the built web app)

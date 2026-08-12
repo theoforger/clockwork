@@ -4,12 +4,12 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Event {
-    pub id: String,                          // UUID for the event
-    pub name: String,                        // Name of the event
-    pub description: Option<String>,         // Optional description
-    pub starts_after: Option<NaiveDateTime>, // Optional start time limit
-    pub ends_before: Option<NaiveDateTime>,  // Optional end time limit
-    pub created_at: NaiveDateTime,           // Time when the event is created
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub starts_after: Option<NaiveDateTime>,
+    pub ends_before: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
 }
 
 pub async fn create_event(
@@ -117,4 +117,3 @@ pub async fn read_event(pool: &sqlx::SqlitePool, id: String) -> Result<Option<Ev
 
     Ok(event)
 }
-

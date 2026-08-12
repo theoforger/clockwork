@@ -5,12 +5,11 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Attendee {
-    pub id: String,                // UUID for the attendee
-    pub event_id: String,          // Foreign key referencing events
-    pub name: String,              // Attendee's name
-    pub emoji: String,             // Emoji for profile picture
-    pub comment: Option<String>,   // Optional comment for this time slot
-    pub created_at: NaiveDateTime, // Time when the attendee made the submission
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub comment: Option<String>,
+    pub created_at: NaiveDateTime,
 }
 
 /// Creates an attendee and returns `(attendee_id, token)`. `token` is a
@@ -118,7 +117,7 @@ pub async fn read_attendees_by_event(
 ) -> Result<Vec<Attendee>, sqlx::Error> {
     let attendees = query!(
         r#"
-        SELECT id, event_id, name, emoji, comment, created_at
+        SELECT id, name, emoji, comment, created_at
         FROM attendees
         WHERE event_id = $1
         "#,
@@ -129,7 +128,6 @@ pub async fn read_attendees_by_event(
     .into_iter()
     .map(|row| Attendee {
         id: row.id.expect("attendee id is never null"),
-        event_id: row.event_id.expect("event_id is never null"),
         name: row.name,
         emoji: row.emoji,
         comment: row.comment,
@@ -139,4 +137,3 @@ pub async fn read_attendees_by_event(
 
     Ok(attendees)
 }
-

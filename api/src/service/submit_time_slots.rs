@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::db::{attendees, events, time_slots};
+use crate::db::{attendees, events};
 use crate::dto::{TimeSlotRequest, TimeSlotResponse};
 use crate::validation::validate_time_slots;
 
@@ -52,23 +52,7 @@ pub async fn handler(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut created = Vec::with_capacity(req.time_slots.len());
-    for slot in req.time_slots {
-        let id = time_slots::create_time_slot(
-            &mut *tx,
-            attendee_id.clone(),
-            slot.start_time,
-            slot.end_time,
-        )
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        created.push(TimeSlotResponse {
-            id,
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-        });
-    }
+    let created = super::create_time_slots(&mut tx, &attendee_id, req.time_slots).await?;
 
     tx.commit()
         .await
