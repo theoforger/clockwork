@@ -8,19 +8,22 @@ import {
   isBefore,
   isAfter,
 } from "date-fns"
-import { submitTimeSlots } from "@/api/events"
+import { submitTimeSlots, type AttendeeResponse } from "@/api/events"
 import { parseAPIDate, formatAPIDate } from "@/lib/date-utils"
 import { clearLastEventId } from "@/lib/session"
 import { toast } from "sonner"
+import { NotFound } from "../NotFound"
 import { AttendeeSidebar } from "./AttendeeSidebar"
 import { ScheduleGrid } from "./ScheduleGrid"
 import { useEventData } from "./useEventData"
 import { useSlotAggregation } from "./useSlotAggregation"
+import { useAttendeeFilter } from "./useAttendeeFilter"
 import { useDragSelection } from "./useDragSelection"
 import { useSubmittedAttendee } from "./useSubmittedAttendee"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
 const EMPTY_ATTENDEE_IDS: Set<string> = new Set()
+const EMPTY_ATTENDEES: AttendeeResponse[] = []
 
 export function EventSchedule() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -28,11 +31,28 @@ export function EventSchedule() {
 
   const { event, loading, currentWeekStart, setCurrentWeekStart, refetch } =
     useEventData(eventId)
-  const { slotMap, slotAttendeeIds } = useSlotAggregation(event)
   const { submittedAttendee, rememberSubmission, deleteSubmission } =
     useSubmittedAttendee(eventId, event, refetch)
 
-  const [showOverlapOnly, setShowOverlapOnly] = useState(false)
+  const attendees = event?.attendees ?? EMPTY_ATTENDEES
+  const {
+    search,
+    setSearch,
+    selectedAttendeeIds,
+    toggleAttendee,
+    selectAll,
+    selectNone,
+    isAllSelected,
+    isNoneSelected,
+  } = useAttendeeFilter(attendees)
+
+  // Slot emoji lists are pre-filtered to the selected attendees, so the
+  // grid reflects the sidebar filter instead of everyone who submitted.
+  const { slotEmojis, slotAttendeeIds } = useSlotAggregation(
+    event,
+    selectedAttendeeIds
+  )
+
   const [hoveredSlot, setHoveredSlot] = useState<Date | null>(null)
 
   // Which attendees submitted the currently-hovered slot, so the sidebar
@@ -67,11 +87,10 @@ export function EventSchedule() {
     selectedSlots,
     setSelectedSlots,
     dragType,
-    isDragging,
     isInDragRange,
+    dragRangeLabel,
     handleMouseDown,
     handleMouseEnter,
-    handleMouseUp,
   } = useDragSelection(isOutsideRange)
 
   const weekDays = useMemo(
@@ -92,17 +111,27 @@ export function EventSchedule() {
   // handlers below) stay stable for the component's whole lifetime, not
   // just between drag frames.
   const changeWeek = useCallback(
-    (weeks: number) =>
-      setCurrentWeekStart((start) => addWeeks(start, weeks)),
+    (weeks: number) => setCurrentWeekStart((start) => addWeeks(start, weeks)),
     [setCurrentWeekStart]
   )
   const handlePrevWeek = useCallback(() => changeWeek(-1), [changeWeek])
   const handleNextWeek = useCallback(() => changeWeek(1), [changeWeek])
 
+  // Same stability concern as above — this backs a clickable row in the
+  // (memoized) sidebar's reference section, not just the Esc shortcut.
+  const handleClearSelection = useCallback(
+    () => setSelectedSlots(new Set()),
+    [setSelectedSlots]
+  )
+
   const handleSubmitAvailability = useCallback(
     async (name: string, emoji: string, comment: string) => {
       if (!name) {
         toast.error("Please enter your name")
+        return
+      }
+      if (!emoji) {
+        toast.error("Please pick an emoji")
         return
       }
       if (selectedSlots.size === 0) {
@@ -149,12 +178,7 @@ export function EventSchedule() {
         Loading...
       </div>
     )
-  if (!event)
-    return (
-      <div className="flex h-screen items-center justify-center">
-        Event not found
-      </div>
-    )
+  if (!event) return <NotFound />
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -162,8 +186,16 @@ export function EventSchedule() {
         eventName={event.name}
         eventDescription={event.description}
         attendees={event.attendees}
-        showOverlapOnly={showOverlapOnly}
-        onShowOverlapOnlyChange={setShowOverlapOnly}
+        selectedAttendeeIds={selectedAttendeeIds}
+        onToggleAttendee={toggleAttendee}
+        search={search}
+        onSearchChange={setSearch}
+        onSelectAll={selectAll}
+        onSelectNone={selectNone}
+        isAllSelected={isAllSelected}
+        isNoneSelected={isNoneSelected}
+        hasSelection={selectedSlots.size > 0}
+        onClearSelection={handleClearSelection}
         onSubmitAvailability={handleSubmitAvailability}
         highlightedAttendeeIds={highlightedAttendeeIds}
         submittedAttendee={submittedAttendee}
@@ -177,16 +209,13 @@ export function EventSchedule() {
         onPrevWeek={handlePrevWeek}
         onNextWeek={handleNextWeek}
         isOutsideRange={isOutsideRange}
-        slotMap={slotMap}
+        slotEmojis={slotEmojis}
         selectedSlots={selectedSlots}
-        totalAttendees={event.attendees.length}
-        showOverlapOnly={showOverlapOnly}
         isInDragRange={isInDragRange}
-        isDragging={isDragging}
         dragType={dragType}
+        dragRangeLabel={dragRangeLabel}
         onMouseDown={handleMouseDown}
         onMouseEnter={handleMouseEnter}
-        onMouseUp={handleMouseUp}
         onHoverSlot={setHoveredSlot}
       />
     </div>

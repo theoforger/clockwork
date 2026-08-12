@@ -7,9 +7,14 @@ import { SLOT_DURATION_MINUTES } from "./constants"
 /**
  * Expands every attendee's submitted time ranges into individual
  * SLOT_DURATION_MINUTES buckets, keyed by slot-start-timestamp: who's
- * available in each slot (slotAttendeeIds), and how many (slotMap).
+ * available in each slot (slotAttendeeIds), and the display glyph (their
+ * chosen emoji) of whichever of those are currently selected in the
+ * sidebar (slotEmojis) — what the grid actually renders.
  */
-export function useSlotAggregation(event: GetEventResponse | null) {
+export function useSlotAggregation(
+  event: GetEventResponse | null,
+  selectedAttendeeIds: Set<string>
+) {
   const normalizedEvent = useMemo(() => {
     if (!event) return null
     return {
@@ -46,14 +51,33 @@ export function useSlotAggregation(event: GetEventResponse | null) {
     return map
   }, [normalizedEvent])
 
-  // Attendee count per slot is just the length of its id list — derive it
-  // from slotAttendeeIds instead of re-walking every attendee's time
-  // ranges a second time.
-  const slotMap = useMemo(() => {
-    const map = new Map<number, number>()
-    slotAttendeeIds.forEach((ids, key) => map.set(key, ids.length))
+  // Each attendee's display glyph — their chosen emoji. Built once per
+  // event fetch so the per-slot pass below can just look ids up instead of
+  // re-deriving this per attendee per slot.
+  const attendeeEmojis = useMemo(() => {
+    const map = new Map<string, string>()
+    if (!normalizedEvent) return map
+    normalizedEvent.attendees.forEach((a) => {
+      map.set(a.id, a.emoji)
+    })
     return map
-  }, [slotAttendeeIds])
+  }, [normalizedEvent])
 
-  return { slotMap, slotAttendeeIds }
+  // Display glyphs per slot, restricted to the selected attendees — derive
+  // it from slotAttendeeIds instead of re-walking every attendee's time
+  // ranges a second time. Slots left with nobody selected are dropped
+  // rather than kept empty, so callers can treat "present in the map" as
+  // "has a selected attendee".
+  const slotEmojis = useMemo(() => {
+    const map = new Map<number, string[]>()
+    slotAttendeeIds.forEach((ids, key) => {
+      const emojis = ids
+        .filter((id) => selectedAttendeeIds.has(id))
+        .map((id) => attendeeEmojis.get(id)!)
+      if (emojis.length > 0) map.set(key, emojis)
+    })
+    return map
+  }, [slotAttendeeIds, selectedAttendeeIds, attendeeEmojis])
+
+  return { slotEmojis, slotAttendeeIds }
 }

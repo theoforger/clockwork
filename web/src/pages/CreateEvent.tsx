@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { format } from "date-fns"
 import { type DateRange } from "react-day-picker"
 
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RangePicker } from "@/components/range-picker"
@@ -19,13 +25,17 @@ import { TimePicker } from "@/components/time-picker"
 import { ModeToggle } from "@/components/mode-toggle"
 import { createEvent, type CreateEventRequest } from "@/api/events"
 import { toast } from "sonner"
-import { formatAPIDate } from "@/lib/date-utils"
+import { formatAPIDate, formatTime } from "@/lib/date-utils"
 import { getLastEventId } from "@/lib/session"
 
+// Returns a local Date rather than an API-formatted string — shared by the
+// submit payload (formatAPIDate'd there) and the human-readable "starts no
+// earlier than..." description below, so both read the same combination
+// logic instead of two copies drifting apart.
 function combineDateAndTime(
   date: Date | undefined,
   time: string
-): string | undefined {
+): Date | undefined {
   if (!date) return
 
   const [hours, minutes] = time.split(":").map(Number)
@@ -33,7 +43,7 @@ function combineDateAndTime(
   const local = new Date(date)
   local.setHours(hours, minutes, 0, 0)
 
-  return formatAPIDate(local)
+  return local
 }
 
 export function CreateEvent() {
@@ -57,6 +67,17 @@ export function CreateEvent() {
   const [startsAt, setStartsAt] = React.useState("10:00")
   const [endsAt, setEndsAt] = React.useState("10:00")
 
+  // Combined once here rather than separately in the submit handler and
+  // the description text below, so both always agree.
+  const startsAfterDate = React.useMemo(
+    () => combineDateAndTime(dateRange?.from, startsAt),
+    [dateRange?.from, startsAt]
+  )
+  const endsBeforeDate = React.useMemo(
+    () => combineDateAndTime(dateRange?.to, endsAt),
+    [dateRange?.to, endsAt]
+  )
+
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(e: React.SubmitEvent) {
@@ -66,10 +87,8 @@ export function CreateEvent() {
     try {
       const body: CreateEventRequest = { name }
       if (description) body.description = description
-      const startsAfter = combineDateAndTime(dateRange?.from, startsAt)
-      const endsBefore = combineDateAndTime(dateRange?.to, endsAt)
-      if (startsAfter) body.starts_after = startsAfter
-      if (endsBefore) body.ends_before = endsBefore
+      if (startsAfterDate) body.starts_after = formatAPIDate(startsAfterDate)
+      if (endsBeforeDate) body.ends_before = formatAPIDate(endsBeforeDate)
 
       const data = await createEvent(body)
       toast.success("Event created successfully!")
@@ -149,6 +168,21 @@ export function CreateEvent() {
                   />
                 )}
               </div>
+              {startsAfterDate && endsBeforeDate && (
+                <FieldDescription>
+                  The event starts no earlier than{" "}
+                  <span className="font-medium text-foreground">
+                    {format(startsAfterDate, "LLL dd, y")} at{" "}
+                    {formatTime(startsAfterDate)}
+                  </span>
+                  , and ends no later than{" "}
+                  <span className="font-medium text-foreground">
+                    {format(endsBeforeDate, "LLL dd, y")} at{" "}
+                    {formatTime(endsBeforeDate)}
+                  </span>
+                  .
+                </FieldDescription>
+              )}
             </FieldGroup>
           </form>
         </CardContent>

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { toast } from "sonner"
-import { deleteAttendee, type AttendeeResponse, type GetEventResponse } from "@/api/events"
+import {
+  deleteAttendee,
+  type AttendeeResponse,
+  type GetEventResponse,
+} from "@/api/events"
 import {
   clearSubmittedAttendeeId,
   getSubmittedAttendeeId,

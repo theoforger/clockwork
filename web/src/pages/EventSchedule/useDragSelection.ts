@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { addMinutes } from "date-fns"
+import { isEditableTarget } from "@/lib/dom"
+import { formatTime } from "@/lib/date-utils"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
 /**
@@ -33,12 +36,7 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return
-
-      const target = e.target as HTMLElement
-      const tag = target.tagName.toLowerCase()
-      const isTyping =
-        tag === "input" || tag === "textarea" || target.isContentEditable
-      if (isTyping) return
+      if (isEditableTarget(e.target)) return
 
       setSelectedSlots(new Set())
       setIsDragging(false)
@@ -62,6 +60,18 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
     },
     [isDragging, dragStart, dragEnd]
   )
+
+  // Label for the whole in-progress selection (dragStart..dragEnd), so a
+  // cell's tooltip can show the span being dragged rather than just its own
+  // 30-minute slot while a drag is in progress.
+  const dragRangeLabel = useMemo(() => {
+    if (!isDragging || !dragStart || !dragEnd) return null
+
+    const start = Math.min(dragStart.getTime(), dragEnd.getTime())
+    const end = Math.max(dragStart.getTime(), dragEnd.getTime())
+
+    return `${formatTime(new Date(start))} – ${formatTime(addMinutes(new Date(end), SLOT_DURATION_MINUTES))}`
+  }, [isDragging, dragStart, dragEnd])
 
   const handleMouseDown = useCallback(
     (time: Date) => {
@@ -140,14 +150,39 @@ export function useDragSelection(isOutsideRange: (time: Date) => boolean) {
     setDragType(null)
   }, [dragStart, dragEnd, dragType])
 
+  // End the drag on the button actually being released, tracked on
+  // `window` rather than any one element — so it reliably ends no matter
+  // where the pointer is by then (over the sidebar, past the edge of the
+  // grid, anywhere in the window), instead of the previous approach of
+  // canceling as soon as the pointer *left* the grid area, which is what
+  // made a fast/far drag feel like it got interrupted.
+  //
+  // If the button is released outside the browser window entirely, no
+  // mouseup ever reaches us — so this also treats any mousemove that
+  // shows the primary button no longer held as an implicit release.
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleGlobalPointerEvent = (e: MouseEvent) => {
+      if (e.type === "mousemove" && (e.buttons & 1) === 1) return
+      handleMouseUp()
+    }
+
+    window.addEventListener("mouseup", handleGlobalPointerEvent)
+    window.addEventListener("mousemove", handleGlobalPointerEvent)
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalPointerEvent)
+      window.removeEventListener("mousemove", handleGlobalPointerEvent)
+    }
+  }, [isDragging, handleMouseUp])
+
   return {
     selectedSlots,
     setSelectedSlots,
     dragType,
-    isDragging,
     isInDragRange,
+    dragRangeLabel,
     handleMouseDown,
     handleMouseEnter,
-    handleMouseUp,
   }
 }

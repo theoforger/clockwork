@@ -18,7 +18,7 @@ export interface TimeSlotRequest {
 
 export interface SubmitTimeSlotsRequest {
   name: string
-  emoji?: string | null
+  emoji: string
   comment?: string | null
   time_slots: TimeSlotRequest[]
 }
@@ -37,7 +37,7 @@ export interface SubmitTimeSlotsResponse {
 export interface AttendeeResponse {
   id: string
   name: string
-  emoji?: string | null
+  emoji: string
   comment?: string | null
   created_at: string
   time_slots: TimeSlotResponse[]
@@ -72,13 +72,10 @@ export async function submitTimeSlots(
   eventId: string,
   payload: SubmitTimeSlotsRequest
 ): Promise<SubmitTimeSlotsResponse> {
-  return apiClient<SubmitTimeSlotsResponse>(
-    `/events/${eventId}/time-slots`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
-  )
+  return apiClient<SubmitTimeSlotsResponse>(`/events/${eventId}/time-slots`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function deleteAttendee(
