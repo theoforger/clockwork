@@ -31,8 +31,13 @@ export function EventSchedule() {
 
   const { event, loading, currentWeekStart, setCurrentWeekStart, refetch } =
     useEventData(eventId)
-  const { submittedAttendee, rememberSubmission, deleteSubmission } =
-    useSubmittedAttendee(eventId, event, refetch)
+  const {
+    submittedAttendee,
+    rememberSubmission,
+    deleteSubmission,
+    updateSubmission,
+  } = useSubmittedAttendee(eventId, event, refetch)
+  const [isEditing, setIsEditing] = useState(false)
 
   const attendees = event?.attendees ?? EMPTY_ATTENDEES
   const {
@@ -124,6 +129,28 @@ export function EventSchedule() {
     [setSelectedSlots]
   )
 
+  // Enter edit mode for the existing submission: seed the grid selection
+  // from its current time slots (each one's already a single
+  // SLOT_DURATION_MINUTES bucket — the only kind this app ever writes — so
+  // no expansion/merging is needed to get back to the Set<timestamp> shape
+  // the grid works with).
+  const handleStartEdit = useCallback(() => {
+    if (!submittedAttendee) return
+    setSelectedSlots(
+      new Set(
+        submittedAttendee.time_slots.map((ts) =>
+          parseAPIDate(ts.start_time).getTime()
+        )
+      )
+    )
+    setIsEditing(true)
+  }, [submittedAttendee, setSelectedSlots])
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false)
+    setSelectedSlots(new Set())
+  }, [setSelectedSlots])
+
   const handleSubmitAvailability = useCallback(
     async (name: string, emoji: string, comment: string) => {
       if (!name) {
@@ -139,29 +166,47 @@ export function EventSchedule() {
         return
       }
 
+      const time_slots = Array.from(selectedSlots).map((ts) => ({
+        start_time: formatAPIDate(new Date(ts)),
+        end_time: formatAPIDate(
+          addMinutes(new Date(ts), SLOT_DURATION_MINUTES)
+        ),
+      }))
+
       try {
-        const response = await submitTimeSlots(eventId!, {
-          name,
-          emoji,
-          comment,
-          time_slots: Array.from(selectedSlots).map((ts) => ({
-            start_time: formatAPIDate(new Date(ts)),
-            end_time: formatAPIDate(
-              addMinutes(new Date(ts), SLOT_DURATION_MINUTES)
-            ),
-          })),
-        })
-        // Remember this submission so a later visit finds the form already
-        // locked to it instead of offering a fresh (duplicate) submission.
-        rememberSubmission(response.attendee_id)
-        toast.success("Selection submitted!")
-        refetch()
-        setSelectedSlots(new Set())
+        if (isEditing) {
+          await updateSubmission({ name, emoji, comment, time_slots })
+          toast.success("Submission updated!")
+          setIsEditing(false)
+          setSelectedSlots(new Set())
+        } else {
+          const response = await submitTimeSlots(eventId!, {
+            name,
+            emoji,
+            comment,
+            time_slots,
+          })
+          // Remember this submission so a later visit finds the form
+          // already locked to it instead of offering a fresh (duplicate)
+          // submission.
+          rememberSubmission(response.attendee_id, response.token)
+          toast.success("Selection submitted!")
+          refetch()
+          setSelectedSlots(new Set())
+        }
       } catch (err) {
         toast.error("Failed to submit: " + err)
       }
     },
-    [selectedSlots, eventId, refetch, setSelectedSlots, rememberSubmission]
+    [
+      selectedSlots,
+      eventId,
+      refetch,
+      setSelectedSlots,
+      rememberSubmission,
+      isEditing,
+      updateSubmission,
+    ]
   )
 
   // "New Event": clear the cookie that bounces the base URL back into this
@@ -199,6 +244,9 @@ export function EventSchedule() {
         onSubmitAvailability={handleSubmitAvailability}
         highlightedAttendeeIds={highlightedAttendeeIds}
         submittedAttendee={submittedAttendee}
+        isEditing={isEditing}
+        onStartEdit={handleStartEdit}
+        onCancelEdit={handleCancelEdit}
         onDeleteSubmission={deleteSubmission}
         onStartNewEvent={handleStartNewEvent}
       />

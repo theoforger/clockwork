@@ -27,17 +27,33 @@ function submittedAttendeeCookieName(eventId: string): string {
   return `clockwork_attendee_${eventId}`
 }
 
+// The submission token authorizes editing/deleting this browser's
+// submission (sent as the api's X-Submission-Token header) — kept in a
+// separate cookie from the attendee id. The id alone isn't a credential:
+// it's public, returned to every viewer of the event via GET /events/{id}.
+function submittedAttendeeTokenCookieName(eventId: string): string {
+  return `clockwork_attendee_token_${eventId}`
+}
+
 export function getSubmittedAttendeeId(eventId: string): string | null {
   return getCookie(submittedAttendeeCookieName(eventId))
 }
 
-export function setSubmittedAttendeeId(
-  eventId: string,
-  attendeeId: string
-): void {
-  setCookie(submittedAttendeeCookieName(eventId), attendeeId, SESSION_DAYS)
+export function getSubmittedAttendeeToken(eventId: string): string | null {
+  return getCookie(submittedAttendeeTokenCookieName(eventId))
 }
 
-export function clearSubmittedAttendeeId(eventId: string): void {
+/** Records a new submission — id and token are set together since neither is useful without the other. */
+export function setSubmittedAttendee(
+  eventId: string,
+  attendeeId: string,
+  token: string
+): void {
+  setCookie(submittedAttendeeCookieName(eventId), attendeeId, SESSION_DAYS)
+  setCookie(submittedAttendeeTokenCookieName(eventId), token, SESSION_DAYS)
+}
+
+export function clearSubmittedAttendee(eventId: string): void {
   deleteCookie(submittedAttendeeCookieName(eventId))
+  deleteCookie(submittedAttendeeTokenCookieName(eventId))
 }

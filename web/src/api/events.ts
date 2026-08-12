@@ -31,6 +31,22 @@ export interface TimeSlotResponse {
 
 export interface SubmitTimeSlotsResponse {
   attendee_id: string
+  // Returned once, here — required to edit or delete this submission
+  // later (see updateAttendee/deleteAttendee), and never included in
+  // getEvent. Callers are responsible for holding onto it.
+  token: string
+  time_slots: TimeSlotResponse[]
+}
+
+export interface UpdateAttendeeRequest {
+  name: string
+  emoji: string
+  comment?: string | null
+  time_slots: TimeSlotRequest[]
+}
+
+export interface UpdateAttendeeResponse {
+  attendee_id: string
   time_slots: TimeSlotResponse[]
 }
 
@@ -78,11 +94,29 @@ export async function submitTimeSlots(
   })
 }
 
+export async function updateAttendee(
+  eventId: string,
+  attendeeId: string,
+  token: string,
+  payload: UpdateAttendeeRequest
+): Promise<UpdateAttendeeResponse> {
+  return apiClient<UpdateAttendeeResponse>(
+    `/events/${eventId}/attendees/${attendeeId}`,
+    {
+      method: "PUT",
+      headers: { "X-Submission-Token": token },
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
 export async function deleteAttendee(
   eventId: string,
-  attendeeId: string
+  attendeeId: string,
+  token: string
 ): Promise<void> {
   await apiClient<void>(`/events/${eventId}/attendees/${attendeeId}`, {
     method: "DELETE",
+    headers: { "X-Submission-Token": token },
   })
 }

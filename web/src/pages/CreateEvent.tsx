@@ -82,6 +82,16 @@ export function CreateEvent() {
 
   async function handleSubmit(e: React.SubmitEvent) {
     e.preventDefault()
+
+    if (
+      startsAfterDate &&
+      endsBeforeDate &&
+      startsAfterDate >= endsBeforeDate
+    ) {
+      toast.error("The event must start before it ends")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {

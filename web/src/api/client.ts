@@ -6,12 +6,16 @@ export async function apiClient<T>(
 ): Promise<T> {
   const url = new URL(endpoint, BASE_URL).toString()
 
+  // `...options` has to come first: it's spread at the top level, so if it
+  // comes after `headers`, an options.headers (e.g. the submission-token
+  // header on update/delete calls) would replace the whole `headers` key
+  // outright instead of merging into it, silently dropping Content-Type.
   const response = await fetch(url, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
     },
-    ...options,
   })
 
   if (!response.ok) {

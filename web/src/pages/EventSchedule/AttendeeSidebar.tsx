@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { AttendeeResponse } from "@/api/events"
 import { Button } from "@/components/ui/button"
@@ -68,8 +68,11 @@ export interface AttendeeSidebarProps {
   highlightedAttendeeIds: Set<string>
   // Non-null once this browser has a remembered submission for this event
   // (see useSubmittedAttendee) — locks the form to that submission instead
-  // of a fresh one.
+  // of a fresh one, unless isEditing is true.
   submittedAttendee: AttendeeResponse | null
+  isEditing: boolean
+  onStartEdit: () => void
+  onCancelEdit: () => void
   onDeleteSubmission: () => Promise<void> | void
   onStartNewEvent: () => void
 }
@@ -93,6 +96,9 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
   onSubmitAvailability,
   highlightedAttendeeIds,
   submittedAttendee,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
   onDeleteSubmission,
   onStartNewEvent,
 }: AttendeeSidebarProps) {
@@ -101,6 +107,16 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
   const [comment, setComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Editing starts from the existing submission's values rather than
+  // whatever's left over in local state from before it existed.
+  useEffect(() => {
+    if (isEditing && submittedAttendee) {
+      setName(submittedAttendee.name)
+      setEmoji(submittedAttendee.emoji)
+      setComment(submittedAttendee.comment ?? "")
+    }
+  }, [isEditing, submittedAttendee])
 
   const descriptionRef = useRef<HTMLParagraphElement>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -118,8 +134,10 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
 
   // Once this browser has a submission on record, the form displays and
   // locks to *that* data rather than whatever's in the (untouched, since
-  // the inputs are disabled) local state above.
-  const isLocked = !!submittedAttendee
+  // the inputs are disabled) local state above — unless it's being edited,
+  // in which case the fields behave like a fresh submission (backed by the
+  // local state seeded from submittedAttendee above).
+  const isLocked = !!submittedAttendee && !isEditing
   const displayName = isLocked ? submittedAttendee.name : name
   const displayEmoji = isLocked ? submittedAttendee.emoji : emoji
   const displayComment = isLocked ? (submittedAttendee.comment ?? "") : comment
@@ -199,27 +217,40 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
 
   const formFields = (
     <div className="shrink-0 space-y-2">
-      {isLocked ? (
-        <Tooltip>
-          <TooltipTrigger asChild>{lockableFields}</TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-56 text-center">
-            Please delete your existing submission to create a new one
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        lockableFields
+      {lockableFields}
+
+      {isLocked && (
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onStartEdit}>
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
       )}
 
-      {isLocked ? (
-        <Button
-          variant="destructive"
-          className="w-full"
-          onClick={handleDelete}
-          disabled={isDeleting}
-        >
-          {isDeleting ? "Deleting..." : "Delete My Submission"}
-        </Button>
-      ) : (
+      {isEditing && (
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onCancelEdit}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      )}
+
+      {!isLocked && !isEditing && (
         <Button
           className="w-full"
           onClick={handleSubmit}

@@ -21,6 +21,12 @@ pub async fn handler(
     State(pool): State<sqlx::SqlitePool>,
     Json(req): Json<Request>,
 ) -> Result<(StatusCode, Json<Response>), StatusCode> {
+    if let (Some(starts_after), Some(ends_before)) = (req.starts_after, req.ends_before)
+        && starts_after >= ends_before
+    {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
     let id = events::create_event(
         &pool,
         req.name,

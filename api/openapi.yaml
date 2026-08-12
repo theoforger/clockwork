@@ -37,7 +37,7 @@ paths:
         '400':
           description: Malformed JSON body
         '422':
-          description: Request body does not match the expected schema (e.g. missing `name`)
+          description: Request body does not match the expected schema (e.g. missing `name`), or `starts_after` is not before `ends_before`
         '500':
           description: Internal server error
 
@@ -108,6 +108,7 @@ paths:
                 $ref: '#/components/schemas/SubmitTimeSlotsResponse'
               example:
                 attendee_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                token: "f1e2d3c4-b5a6-7890-1234-567890abcdef"
                 time_slots:
                   - id: "c3d4e5f6-a7b8-9012-cdef-123456789012"
                     start_time: "2026-06-10T14:00:00"
@@ -118,23 +119,58 @@ paths:
         '400':
           description: Malformed JSON body
         '422':
-          description: Request body does not match the expected schema, or `time_slots` is empty
+          description: Request body does not match the expected schema, `time_slots` is empty, a slot's `end_time` isn't after its `start_time`, or a slot falls outside the event's `starts_after`/`ends_before` window
         '500':
           description: Internal server error
 
   /events/{event_id}/attendees/{attendee_id}:
+    put:
+      summary: Edit attendee
+      description: Replaces an existing attendee's profile fields and time slots. Requires the submission token returned once by `submitTimeSlots`.
+      operationId: updateAttendee
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/AttendeeId'
+        - $ref: '#/components/parameters/SubmissionToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitTimeSlotsRequest'
+      responses:
+        '200':
+          description: Attendee updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateAttendeeResponse'
+        '400':
+          description: Malformed JSON body
+        '401':
+          description: Missing X-Submission-Token header
+        '404':
+          description: Attendee not found on this event, or the token doesn't match
+        '422':
+          description: Request body does not match the expected schema, `time_slots` is empty, a slot's `end_time` isn't after its `start_time`, or a slot falls outside the event's `starts_after`/`ends_before` window
+        '500':
+          description: Internal server error
+
     delete:
       summary: Delete attendee
-      description: Removes an attendee from the event along with all of their submitted time slots.
+      description: Removes an attendee from the event along with all of their submitted time slots. Requires the submission token returned once by `submitTimeSlots`.
       operationId: deleteAttendee
       parameters:
         - $ref: '#/components/parameters/EventId'
         - $ref: '#/components/parameters/AttendeeId'
+        - $ref: '#/components/parameters/SubmissionToken'
       responses:
         '204':
           description: Attendee deleted
+        '401':
+          description: Missing X-Submission-Token header
         '404':
-          description: Attendee not found on this event
+          description: Attendee not found on this event, or the token doesn't match
         '500':
           description: Internal server error
 
@@ -159,6 +195,20 @@ components:
         type: string
         format: uuid
       example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+
+    SubmissionToken:
+      name: X-Submission-Token
+      in: header
+      required: true
+      description: >-
+        The token returned once, in the `submitTimeSlots` response, when
+        this attendee was created. Unlike the attendee id, it's never
+        returned by `getEvent`, so possessing it is what proves this is
+        your own submission.
+      schema:
+        type: string
+        format: uuid
+      example: "f1e2d3c4-b5a6-7890-1234-567890abcdef"
 
   schemas:
     CreateEventRequest:
@@ -254,12 +304,34 @@ components:
       type: object
       required:
         - attendee_id
+        - token
         - time_slots
       properties:
         attendee_id:
           type: string
           format: uuid
           description: UUID of the newly created attendee
+        token:
+          type: string
+          format: uuid
+          description: >-
+            Secret required to edit or delete this submission later. Shown
+            here once — store it; it cannot be recovered afterward, and it
+            is never included in `getEvent`.
+        time_slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSlotResponse'
+
+    UpdateAttendeeResponse:
+      type: object
+      required:
+        - attendee_id
+        - time_slots
+      properties:
+        attendee_id:
+          type: string
+          format: uuid
         time_slots:
           type: array
           items:

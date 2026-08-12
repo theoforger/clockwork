@@ -2,16 +2,19 @@ mod cleanup;
 mod db;
 mod dto;
 mod service;
+mod validation;
 
 use axum::{
     Router,
-    http::{HeaderValue, Method, header::CONTENT_TYPE},
+    http::{HeaderName, HeaderValue, Method, header::CONTENT_TYPE},
     routing::{delete, get, post},
 };
 use dotenvy::dotenv;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::env;
 use tower_http::cors::CorsLayer;
+
+use service::TOKEN_HEADER;
 
 #[tokio::main]
 async fn main() {
@@ -31,6 +34,11 @@ async fn main() {
 
     cleanup::spawn(pool.clone());
 
+    // Attendees pass their submission token in this header to prove
+    // ownership when editing/deleting — it's non-standard, so it needs to
+    // be explicitly allowed or CORS preflight will strip it.
+    let token_header = HeaderName::from_static(TOKEN_HEADER);
+
     let app = Router::new()
         .route("/events", post(service::create_event::handler))
         .route("/events/{event_id}", get(service::get_event::handler))
@@ -40,7 +48,7 @@ async fn main() {
         )
         .route(
             "/events/{event_id}/attendees/{attendee_id}",
-            delete(service::delete_attendee::handler),
+            delete(service::delete_attendee::handler).put(service::update_attendee::handler),
         )
         .with_state(pool)
         .layer(match env::var("ALLOW_ORIGIN") {
@@ -50,12 +58,12 @@ async fn main() {
                     .expect("ALLOW_ORIGIN is not a valid header value");
                 CorsLayer::new()
                     .allow_origin(value)
-                    .allow_headers([CONTENT_TYPE])
-                    .allow_methods([Method::GET, Method::POST, Method::DELETE])
+                    .allow_headers([CONTENT_TYPE, token_header])
+                    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
             }
             Err(_) => CorsLayer::new()
-                .allow_headers([CONTENT_TYPE])
-                .allow_methods([Method::GET, Method::POST, Method::DELETE]),
+                .allow_headers([CONTENT_TYPE, token_header])
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]),
         });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
