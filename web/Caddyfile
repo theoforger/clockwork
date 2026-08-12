@@ -1,0 +1,14 @@
+:80 {
+	root * /srv
+	encode gzip zstd
+
+	@immutable {
+		path *.js *.css *.svg *.png *.jpg *.jpeg *.gif *.ico *.woff *.woff2
+	}
+	header @immutable Cache-Control "public, max-age=2592000, immutable"
+
+	# Client-side routing (react-router-dom's BrowserRouter): let unknown
+	# paths fall through to index.html instead of 404ing.
+	try_files {path} /index.html
+	file_server
+}
