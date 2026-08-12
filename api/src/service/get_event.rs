@@ -15,7 +15,7 @@ use crate::dto::TimeSlotResponse;
 pub struct AttendeeResponse {
     pub id: String,
     pub name: String,
-    pub emoji: Option<String>,
+    pub emoji: String,
     pub comment: Option<String>,
     pub created_at: NaiveDateTime,
     pub time_slots: Vec<TimeSlotResponse>,

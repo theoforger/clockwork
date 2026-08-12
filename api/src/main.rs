@@ -1,3 +1,4 @@
+mod cleanup;
 mod db;
 mod dto;
 mod service;
@@ -27,6 +28,8 @@ async fn main() {
         .run(&pool)
         .await
         .expect("Failed to run migrations");
+
+    cleanup::spawn(pool.clone());
 
     let app = Router::new()
         .route("/events", post(service::create_event::handler))

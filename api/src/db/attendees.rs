@@ -8,7 +8,7 @@ pub struct Attendee {
     pub id: String,                // UUID for the attendee
     pub event_id: String,          // Foreign key referencing events
     pub name: String,              // Attendee's name
-    pub emoji: Option<String>,     // Optional emoji for profile picture
+    pub emoji: String,             // Emoji for profile picture
     pub comment: Option<String>,   // Optional comment for this time slot
     pub created_at: NaiveDateTime, // Time when the attendee made the submission
 }
@@ -17,7 +17,7 @@ pub async fn create_attendee<'e, E>(
     executor: E,
     event_id: String,
     name: String,
-    emoji: Option<String>,
+    emoji: String,
     comment: Option<String>,
 ) -> Result<String, sqlx::Error>
 where

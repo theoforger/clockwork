@@ -11,7 +11,7 @@ use crate::dto::{TimeSlotRequest, TimeSlotResponse};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttendeeRequest {
     pub name: String,
-    pub emoji: Option<String>,
+    pub emoji: String,
     pub comment: Option<String>,
     pub time_slots: Vec<TimeSlotRequest>,
 }

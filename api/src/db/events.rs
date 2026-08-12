@@ -38,6 +38,63 @@ pub async fn create_event(
     Ok(event_id)
 }
 
+/// Deletes every event whose `ends_before` is in the past, along with all
+/// of its attendees and their time slots. Events with no `ends_before` set
+/// have no defined end and are never swept.
+///
+/// Cascades manually within one transaction rather than relying on SQLite
+/// foreign-key `ON DELETE CASCADE` — same approach as
+/// `delete_attendee_by_event`'s caller, kept consistent here instead of
+/// introducing a second cascade strategy.
+pub async fn delete_expired_events(
+    pool: &sqlx::SqlitePool,
+    now: NaiveDateTime,
+) -> Result<u64, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    query!(
+        r#"
+        DELETE FROM time_slots
+        WHERE attendee_id IN (
+            SELECT attendees.id
+            FROM attendees
+            INNER JOIN events ON events.id = attendees.event_id
+            WHERE events.ends_before IS NOT NULL AND events.ends_before < $1
+        )
+        "#,
+        now
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    query!(
+        r#"
+        DELETE FROM attendees
+        WHERE event_id IN (
+            SELECT id FROM events
+            WHERE ends_before IS NOT NULL AND ends_before < $1
+        )
+        "#,
+        now
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    let result = query!(
+        r#"
+        DELETE FROM events
+        WHERE ends_before IS NOT NULL AND ends_before < $1
+        "#,
+        now
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(result.rows_affected())
+}
+
 pub async fn read_event(pool: &sqlx::SqlitePool, id: String) -> Result<Option<Event>, sqlx::Error> {
     let event = query!(
         r#"

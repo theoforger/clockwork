@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS attendees (
     id TEXT PRIMARY KEY,                             -- UUID for the attendee
     event_id TEXT,                                   -- Foreign key referencing events
     name TEXT NOT NULL,                              -- Attendee's name
-    emoji TEXT,                                      -- Optional emoji for profile picture
+    emoji TEXT NOT NULL,                             -- Emoji for profile picture
     comment TEXT,                                    -- Optional comment from this attendee
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,   -- Automatically set submission time of this attendee
     FOREIGN KEY (event_id) REFERENCES events(id)

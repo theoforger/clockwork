@@ -187,6 +187,7 @@ components:
       type: object
       required:
         - name
+        - emoji
         - time_slots
       properties:
         name:
@@ -194,8 +195,7 @@ components:
           description: Display name of the attendee
         emoji:
           type: string
-          nullable: true
-          description: Optional emoji used as a profile picture
+          description: Emoji used as a profile picture
         comment:
           type: string
           nullable: true
@@ -256,7 +256,7 @@ components:
           type: string
         emoji:
           type: string
-          nullable: true
+          description: Emoji used as a profile picture
         comment:
           type: string
           nullable: true
