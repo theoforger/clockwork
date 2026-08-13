@@ -24,11 +24,22 @@ export default defineConfig({
     {
       // Chromium only, deliberately: the drag-to-select/auto-scroll
       // interactions are real mouse-event sequences, and Chromium's
-      // emulation of those is the most reliable. See TESTING.md's
-      // "out of scope" section for the plan to add a WebKit/Firefox smoke
-      // subset later.
+      // emulation of those is the most reliable. A WebKit/Firefox smoke
+      // subset is a reasonable future addition, not done here.
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /.*\.mobile\.spec\.ts/,
+    },
+    {
+      // A mobile-viewport, touch-capable Chromium profile for the
+      // *.mobile.spec.ts smoke subset — Chromium again rather than WebKit,
+      // for the same "most reliable emulation" reason as above (a WebKit
+      // run is a reasonable future addition, not part of this pass — see
+      // the "chromium" project's comment). Scoped via testMatch so it
+      // never picks up the desktop-only suite above.
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 7"] },
+      testMatch: /.*\.mobile\.spec\.ts/,
     },
   ],
 

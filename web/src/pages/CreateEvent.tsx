@@ -116,7 +116,7 @@ export function CreateEvent() {
   if (lastEventId) return null
 
   return (
-    <main className="flex min-h-screen items-center justify-center">
+    <main className="flex min-h-screen items-center justify-center px-4">
       <div className="fixed top-4 right-4">
         <ModeToggle />
       </div>
@@ -154,7 +154,7 @@ export function CreateEvent() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </Field>
-              <div className="flex flex-row justify-stretch gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-stretch">
                 <RangePicker
                   id="event-date-range"
                   label="Date Range (Optional)"
@@ -162,20 +162,20 @@ export function CreateEvent() {
                   setDateRange={setDateRange}
                 />
                 {dateRange && (
-                  <TimePicker
-                    id="event-starts-at"
-                    label="Starts At"
-                    time={startsAt}
-                    setTime={setStartsAt}
-                  />
-                )}
-                {dateRange && (
-                  <TimePicker
-                    id="event-ends-at"
-                    label="Ends At"
-                    time={endsAt}
-                    setTime={setEndsAt}
-                  />
+                  <div className="flex gap-2">
+                    <TimePicker
+                      id="event-starts-at"
+                      label="Starts At"
+                      time={startsAt}
+                      setTime={setStartsAt}
+                    />
+                    <TimePicker
+                      id="event-ends-at"
+                      label="Ends At"
+                      time={endsAt}
+                      setTime={setEndsAt}
+                    />
+                  </div>
                 )}
               </div>
               {startsAfterDate && endsBeforeDate && (

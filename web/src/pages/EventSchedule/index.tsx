@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   addWeeks,
@@ -12,8 +12,10 @@ import { submitTimeSlots, type AttendeeResponse } from "@/api/events"
 import { parseAPIDate, formatAPIDate } from "@/lib/date-utils"
 import { clearLastEventId } from "@/lib/session"
 import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
 import { NotFound } from "../NotFound"
-import { AttendeeSidebar } from "./AttendeeSidebar"
+import { AttendeeSidebar, AttendeeSidebarSheet } from "./AttendeeSidebar"
 import { ScheduleGrid } from "./ScheduleGrid"
 import { useEventData } from "./useEventData"
 import { useSlotAggregation } from "./useSlotAggregation"
@@ -88,15 +90,36 @@ export function EventSchedule() {
     [event]
   )
 
+  // Mobile-only: whether the grid is in touch drag-select mode rather than
+  // its default native-scroll ("Browse") mode — see useDragSelection's
+  // docstring for why touch needs this distinction. Irrelevant on
+  // mouse/pen, where dragging always works the same way it always has.
+  const [touchSelectMode, setTouchSelectMode] = useState(false)
+  const handleToggleTouchSelectMode = useCallback(
+    () => setTouchSelectMode((v) => !v),
+    []
+  )
+
   const {
     selectedSlots,
     setSelectedSlots,
     dragType,
+    dragEnd,
     isInDragRange,
     dragRangeLabel,
-    handleMouseDown,
-    handleMouseEnter,
-  } = useDragSelection(isOutsideRange)
+    handlePointerDown,
+    handlePointerEnter,
+  } = useDragSelection(isOutsideRange, touchSelectMode)
+
+  // The attendee sidebar's mobile sheet — hidden on md:+, where
+  // AttendeeSidebar renders as an always-visible aside instead.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
+  // Close the sheet the moment a selection gesture starts, so it doesn't
+  // sit on top of the grid the user is trying to interact with.
+  useEffect(() => {
+    if (dragType !== null) setIsSidebarOpen(false)
+  }, [dragType])
 
   const weekDays = useMemo(
     () =>
@@ -128,6 +151,7 @@ export function EventSchedule() {
     () => setSelectedSlots(new Set()),
     [setSelectedSlots]
   )
+  const handleOpenSidebar = useCallback(() => setIsSidebarOpen(true), [])
 
   // Enter edit mode for the existing submission: seed the grid selection
   // from its current time slots (each one's already a single
@@ -225,30 +249,37 @@ export function EventSchedule() {
     )
   if (!event) return <NotFound />
 
+  const sidebarProps = {
+    eventName: event.name,
+    eventDescription: event.description,
+    attendees: event.attendees,
+    selectedAttendeeIds,
+    onToggleAttendee: toggleAttendee,
+    search,
+    onSearchChange: setSearch,
+    onSelectAll: selectAll,
+    onSelectNone: selectNone,
+    isAllSelected,
+    isNoneSelected,
+    hasSelection: selectedSlots.size > 0,
+    onClearSelection: handleClearSelection,
+    onSubmitAvailability: handleSubmitAvailability,
+    highlightedAttendeeIds,
+    submittedAttendee,
+    isEditing,
+    onStartEdit: handleStartEdit,
+    onCancelEdit: handleCancelEdit,
+    onDeleteSubmission: deleteSubmission,
+    onStartNewEvent: handleStartNewEvent,
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <AttendeeSidebar
-        eventName={event.name}
-        eventDescription={event.description}
-        attendees={event.attendees}
-        selectedAttendeeIds={selectedAttendeeIds}
-        onToggleAttendee={toggleAttendee}
-        search={search}
-        onSearchChange={setSearch}
-        onSelectAll={selectAll}
-        onSelectNone={selectNone}
-        isAllSelected={isAllSelected}
-        isNoneSelected={isNoneSelected}
-        hasSelection={selectedSlots.size > 0}
-        onClearSelection={handleClearSelection}
-        onSubmitAvailability={handleSubmitAvailability}
-        highlightedAttendeeIds={highlightedAttendeeIds}
-        submittedAttendee={submittedAttendee}
-        isEditing={isEditing}
-        onStartEdit={handleStartEdit}
-        onCancelEdit={handleCancelEdit}
-        onDeleteSubmission={deleteSubmission}
-        onStartNewEvent={handleStartNewEvent}
+      <AttendeeSidebar {...sidebarProps} />
+      <AttendeeSidebarSheet
+        {...sidebarProps}
+        open={isSidebarOpen}
+        onOpenChange={setIsSidebarOpen}
       />
 
       <ScheduleGrid
@@ -261,11 +292,33 @@ export function EventSchedule() {
         selectedSlots={selectedSlots}
         isInDragRange={isInDragRange}
         dragType={dragType}
+        dragEnd={dragEnd}
         dragRangeLabel={dragRangeLabel}
-        onMouseDown={handleMouseDown}
-        onMouseEnter={handleMouseEnter}
+        onPointerDown={handlePointerDown}
+        onPointerEnter={handlePointerEnter}
         onHoverSlot={setHoveredSlot}
+        touchSelectMode={touchSelectMode}
+        onToggleTouchSelectMode={handleToggleTouchSelectMode}
+        onOpenSidebar={handleOpenSidebar}
       />
+
+      {/* Mobile-only: once there's something selected, the sidebar (where
+          submitting actually happens) is one tap away behind the
+          hamburger — easy to miss on a first visit. This surfaces that
+          next step directly instead of leaving the user to find it.
+          Hidden mid-drag (dragType !== null) so it doesn't appear right
+          where a finger might be dragging near the bottom edge. */}
+      {selectedSlots.size > 0 && !isSidebarOpen && dragType === null && (
+        <button
+          type="button"
+          onClick={() => setIsSidebarOpen(true)}
+          className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg md:hidden"
+        >
+          {selectedSlots.size} slot{selectedSlots.size === 1 ? "" : "s"}{" "}
+          selected
+          <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+        </button>
+      )}
     </div>
   )
 }

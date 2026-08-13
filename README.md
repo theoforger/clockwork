@@ -95,9 +95,7 @@ pnpm test
 ```
 
 This boots a real API (against a scratch SQLite DB) and the web dev server
-itself, so no separate setup is needed. See [`TESTING.md`](TESTING.md) for
-the full testing strategy, a feature-by-feature coverage map, and what's
-still just planned (an API-level integration test layer).
+itself, so no separate setup is needed.
 
 ## Tech stack
 

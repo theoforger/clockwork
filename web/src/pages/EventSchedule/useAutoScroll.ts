@@ -1,18 +1,24 @@
 import { useEffect, useRef } from "react"
 
-// How close to the container's edge (in px) the pointer needs to be before
-// auto-scroll kicks in, and the fastest it'll scroll right at that edge.
+// How close to the container's bottom/top edge (in px) the pointer needs
+// to be before auto-scroll kicks in, and the fastest it'll scroll right
+// at that edge.
 const EDGE_SIZE = 56
 const MAX_SPEED = 16
 
 /**
- * Auto-scrolls `containerRef` while `active` and the pointer sits near one
- * of its edges — lets a drag-to-select gesture keep extending past the
- * currently visible grid instead of stalling the moment the pointer
- * reaches the edge of the scrollable area.
+ * Auto-scrolls `containerRef` vertically while `active` and the pointer
+ * sits near its top/bottom edge — lets a drag-to-select gesture keep
+ * extending past the currently visible grid instead of stalling the
+ * moment the pointer reaches the edge of the scrollable area.
+ *
+ * Vertical only, deliberately: a drag is locked to the day it started on
+ * (see useDragSelection's clampToDay), so auto-scrolling *horizontally*
+ * toward another day's column would only scroll the selection preview out
+ * of view without ever being able to extend into it.
  *
  * Scrolling can move new cells under an otherwise-stationary cursor, which
- * won't fire their own mouseenter — so after every scroll tick, whichever
+ * won't fire their own pointerenter — so after every scroll tick, whichever
  * cell now sits under the pointer (found via its `data-time` attribute) is
  * reported through `onCellHover`, the same callback a real hover would use,
  * so the selection keeps growing in step with the scroll.
@@ -27,13 +33,13 @@ export function useAutoScroll(
   useEffect(() => {
     if (!active) return
 
-    const handlePointerMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       pointerRef.current = { x: e.clientX, y: e.clientY }
     }
-    window.addEventListener("mousemove", handlePointerMove)
+    window.addEventListener("pointermove", handlePointerMove)
 
-    // How fast to scroll along one axis: 0 in the "dead zone" away from
-    // both edges, ramping up to MAX_SPEED right at the edge itself.
+    // How fast to scroll: 0 in the "dead zone" away from both edges,
+    // ramping up to MAX_SPEED right at the edge itself.
     const edgeSpeed = (pos: number, start: number, end: number) => {
       if (pos < start + EDGE_SIZE) {
         return -MAX_SPEED * ((start + EDGE_SIZE - pos) / EDGE_SIZE)
@@ -52,12 +58,8 @@ export function useAutoScroll(
         const { x, y } = pointerRef.current
 
         const dy = edgeSpeed(y, rect.top, rect.bottom)
-        const dx = edgeSpeed(x, rect.left, rect.right)
-
-        if (dy) container.scrollTop += dy
-        if (dx) container.scrollLeft += dx
-
-        if (dy || dx) {
+        if (dy) {
+          container.scrollTop += dy
           const cell = document
             .elementFromPoint(x, y)
             ?.closest<HTMLElement>("[data-time]")
@@ -69,7 +71,7 @@ export function useAutoScroll(
     rafId = requestAnimationFrame(tick)
 
     return () => {
-      window.removeEventListener("mousemove", handlePointerMove)
+      window.removeEventListener("pointermove", handlePointerMove)
       cancelAnimationFrame(rafId)
     }
   }, [active, containerRef, onCellHover])

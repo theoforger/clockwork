@@ -146,4 +146,29 @@ test.describe("Schedule grid — selection", () => {
     const selectedCount = await page.locator("[data-time].bg-primary").count()
     expect(selectedCount).toBeGreaterThan(5)
   })
+
+  test("dragging into another day's column stays locked to the day the drag started on", async ({
+    page,
+    api,
+  }) => {
+    const created = await api.createEvent({ name: "Cross Day Drag" })
+    await page.goto(`/${created.id}`)
+    await expect(page.getByText("Cross Day Drag")).toBeVisible()
+
+    const start = page.locator(slotSelector("2026-08-09 02:00:00"))
+    // Same time-of-day, the very next column over — dragging here should
+    // not select anything on 2026-08-10; the selection should clamp to
+    // the end of 2026-08-09 instead.
+    const nextDayCell = page.locator(slotSelector("2026-08-10 02:00:00"))
+
+    await dragSelect(page, start, nextDayCell)
+
+    await expect(start).toHaveClass(/bg-primary/)
+    await expect(nextDayCell).not.toHaveClass(/bg-primary/)
+    // 23:30 — the last slot of 2026-08-09 — should be selected instead,
+    // confirming the drag clamped to the end of the day rather than just
+    // stopping short of the next one.
+    const lastSlotOfStartDay = page.locator(slotSelector("2026-08-09 23:30:00"))
+    await expect(lastSlotOfStartDay).toHaveClass(/bg-primary/)
+  })
 })

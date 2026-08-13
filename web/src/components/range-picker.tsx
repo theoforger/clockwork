@@ -27,7 +27,7 @@ export function RangePicker({
   setDateRange,
 }: RangePickerProps) {
   return (
-    <Field className="w-max flex-1">
+    <Field className="w-full sm:w-max sm:flex-1">
       <FieldLabel htmlFor="date-picker-range">{label}</FieldLabel>
       <Popover>
         <PopoverTrigger asChild>

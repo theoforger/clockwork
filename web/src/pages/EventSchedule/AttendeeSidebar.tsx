@@ -37,6 +37,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -84,9 +85,12 @@ export interface AttendeeSidebarProps {
   onStartNewEvent: () => void
 }
 
-// Memoized so it doesn't re-render on every throttled drag frame — none of
-// its own props change while a drag is in progress.
-export const AttendeeSidebar = memo(function AttendeeSidebar({
+// Everything that renders inside the sidebar, shared between the always-
+// visible desktop `<aside>` (AttendeeSidebar, below) and the mobile
+// slide-over (AttendeeSidebarSheet, below) — kept as one component so the
+// two shells never drift out of sync, with just their outer container
+// (fixed-width aside vs. a Sheet's panel) differing.
+function AttendeeSidebarContent({
   eventName,
   eventDescription,
   attendees,
@@ -127,23 +131,19 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
 
   const descriptionRef = useRef<HTMLParagraphElement>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-  // Whether the clamped description actually overflows 2 lines — i.e.
-  // whether a "Read more" toggle is even needed. Measured only off
-  // `eventDescription` itself, not `isDescriptionExpanded`: re-running this
-  // on every expand/collapse would re-measure the now-unclamped (fully
-  // visible, non-overflowing) element and make the button disappear the
-  // moment it's clicked.
+  // Whether the clamped description overflows 2 lines, i.e. needs a "Read
+  // more" toggle. Measured off `eventDescription` only, not
+  // `isDescriptionExpanded` — re-measuring on expand/collapse would read
+  // the now-unclamped element and make the button disappear once clicked.
   const [isDescriptionClamped, setIsDescriptionClamped] = useState(false)
   useLayoutEffect(() => {
     const el = descriptionRef.current
     setIsDescriptionClamped(!!el && el.scrollHeight > el.clientHeight)
   }, [eventDescription])
 
-  // Once this browser has a submission on record, the form displays and
-  // locks to *that* data rather than whatever's in the (untouched, since
-  // the inputs are disabled) local state above — unless it's being edited,
-  // in which case the fields behave like a fresh submission (backed by the
-  // local state seeded from submittedAttendee above).
+  // Once a submission is on record, the form displays and locks to that
+  // data instead of the (untouched) local state above — unless editing,
+  // in which case it behaves like a fresh submission seeded from it.
   const isLocked = !!submittedAttendee && !isEditing
   const displayName = isLocked ? submittedAttendee.name : name
   const displayEmoji = isLocked ? submittedAttendee.emoji : emoji
@@ -270,14 +270,7 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
   )
 
   return (
-    // min-h-0 overrides the automatic (content-based) minimum size flex
-    // items get by default — without it, this aside's own min-content
-    // height (header + form + full attendee list + footer, unclamped)
-    // would win over the stretch-to-h-screen height it gets from being a
-    // row-flex item in EventSchedule's container, so it'd grow taller than
-    // the viewport instead of actually shrinking and letting the attendee
-    // list section below scroll internally.
-    <aside className="flex h-full min-h-0 w-80 shrink-0 flex-col gap-4 border-r bg-card p-4 shadow-sm">
+    <>
       <div className="shrink-0">
         <div className="flex items-center justify-between gap-2">
           <h2 className="truncate text-xl font-bold">{eventName}</h2>
@@ -393,8 +386,8 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
             <TooltipContent side="bottom">Select none</TooltipContent>
           </Tooltip>
         </div>
-        {/* min-h-0: same automatic-minimum-size override as the aside
-            itself below — ScrollArea's Root is just a block-level flex
+        {/* min-h-0: same automatic-minimum-size override as the sidebar's
+            own container — ScrollArea's Root is just a block-level flex
             item, so without this its content (the full attendee list)
             would win over flex-1 and keep it from ever shrinking down to
             scrollable size. */}
@@ -474,6 +467,68 @@ export const AttendeeSidebar = memo(function AttendeeSidebar({
           <HugeiconsIcon icon={Copy01Icon} size={16} />
         </Button>
       </div>
+    </>
+  )
+}
+
+// Always-visible desktop sidebar. Memoized so it doesn't re-render on every
+// throttled drag frame — none of its own props change while a drag is in
+// progress.
+export const AttendeeSidebar = memo(function AttendeeSidebar(
+  props: AttendeeSidebarProps
+) {
+  return (
+    // min-h-0 overrides the automatic (content-based) minimum size flex
+    // items get by default — without it, this aside's own min-content
+    // height (header + form + full attendee list + footer, unclamped)
+    // would win over the stretch-to-h-screen height it gets from being a
+    // row-flex item in EventSchedule's container, so it'd grow taller than
+    // the viewport instead of actually shrinking and letting the attendee
+    // list section below scroll internally.
+    <aside className="hidden h-full min-h-0 w-80 shrink-0 flex-col gap-4 border-r bg-card p-4 shadow-sm md:flex">
+      <AttendeeSidebarContent {...props} />
     </aside>
+  )
+})
+
+export interface AttendeeSidebarSheetProps extends AttendeeSidebarProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+// Mobile equivalent of AttendeeSidebar: the same content, reached via a
+// hamburger button (in ScheduleGrid's header) instead of always being on
+// screen, since a permanent 320px-wide sidebar would leave almost nothing
+// for the schedule grid on a phone.
+export const AttendeeSidebarSheet = memo(function AttendeeSidebarSheet({
+  open,
+  onOpenChange,
+  ...props
+}: AttendeeSidebarSheetProps) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="left"
+        // pt-12 clears the Sheet's own absolutely-positioned close button
+        // (top-4 right-4), which would otherwise sit right on top of the
+        // "New Event" button at the start of this content's header row.
+        className="flex w-3/4 flex-col gap-4 p-4 pt-12 sm:max-w-xs"
+        // Radix's default open-focus behavior would land on the "New
+        // Event" button — the first focusable descendant, and it's
+        // wrapped in a Tooltip. Focusing it opens that tooltip, which then
+        // swallows the *first* Escape press to dismiss itself instead of
+        // closing the sheet. Skip the auto-focus entirely rather than
+        // fight over which element should get it.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {/* Visually hidden: the content below already shows the event name
+            as a heading, so this only exists to give Radix's dialog the
+            accessible title it requires. */}
+        <SheetHeader className="sr-only">
+          <SheetTitle>{props.eventName}</SheetTitle>
+        </SheetHeader>
+        <AttendeeSidebarContent {...props} />
+      </SheetContent>
+    </Sheet>
   )
 })

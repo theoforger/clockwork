@@ -75,8 +75,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /**
  * Direct HTTP client for the Clockwork API. Used to seed or inspect state
- * in tests without driving the UI for setup that isn't itself under
- * test — see TESTING.md's "API-first setup, UI-first assertions" note.
+ * in tests without driving the UI for setup that isn't itself under test —
+ * API-first setup, UI-first assertions.
  */
 export class ApiClient {
   createEvent(payload: CreateEventPayload): Promise<CreateEventResult> {

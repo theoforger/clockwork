@@ -12,14 +12,22 @@ export interface TimeCellProps {
   // count — its length is that count.
   emojis: string[]
   isSelected: boolean
-  onMouseDown: (time: Date) => void
-  onMouseEnter: (time: Date) => void
+  onPointerDown: (
+    time: Date,
+    e: { clientX: number; clientY: number; pointerType: string }
+  ) => void
+  onPointerEnter: (time: Date) => void
   onHoverChange: (time: Date | null) => void
   dragPreview: boolean
   dragType: "select" | "deselect" | null
   // Label for the whole in-progress drag selection, shown instead of this
   // cell's own 30-minute label while a drag is active.
   dragRangeLabel: string | null
+  // Whether *this* cell is the one the drag is currently extended to.
+  // Mouse/pen already show the tooltip via isHovered (a real pointerenter
+  // fires on every cell they cross), but touch never fires that per-cell
+  // during a drag — this is what shows it there instead.
+  isDragCursor: boolean
 }
 
 export const TimeCell = React.memo(function TimeCell({
@@ -27,12 +35,13 @@ export const TimeCell = React.memo(function TimeCell({
   outside,
   emojis,
   isSelected,
-  onMouseDown,
-  onMouseEnter,
+  onPointerDown,
+  onPointerEnter,
   onHoverChange,
   dragPreview,
   dragType,
   dragRangeLabel,
+  isDragCursor,
 }: TimeCellProps) {
   const [isHovered, setIsHovered] = React.useState(false)
 
@@ -43,7 +52,7 @@ export const TimeCell = React.memo(function TimeCell({
   // preview, and the submitted-availability wash swallowing a select
   // preview entirely (both set `background-color`, and since the wash's
   // class comes later in the list below, tailwind-merge would let it win
-  // and hide the preview until mouseup without this).
+  // and hide the preview until pointerup without this).
   const isPendingSelect = dragPreview && dragType === "select"
   const isPendingDeselect = dragPreview && dragType === "deselect"
   const isPending = isPendingSelect || isPendingDeselect
@@ -71,12 +80,13 @@ export const TimeCell = React.memo(function TimeCell({
 
   return (
     <div
-      // Read by useAutoScroll to find whichever cell is under the pointer
-      // after an auto-scroll tick moves the grid without the mouse itself
-      // moving, so it can keep extending the drag selection to match.
+      // Read by useAutoScroll (and the touch drag-extension listener in
+      // ScheduleGrid) to find whichever cell is under the pointer after a
+      // scroll or a touch move that didn't fire this cell's own
+      // pointerenter, so the drag selection keeps extending to match.
       data-time={timeMs}
       className={cn(
-        "relative h-8 bg-background transition-colors",
+        "relative h-11 bg-background transition-colors md:h-8",
         outside && "cursor-not-allowed bg-muted/50",
         !outside && "z-10 cursor-pointer hover:ring-1 hover:ring-primary/30",
         // FINAL selection: solid fill + a bold inset ring, so it always
@@ -90,7 +100,7 @@ export const TimeCell = React.memo(function TimeCell({
         // GHOST preview: a lighter version of the same solid+ring look, but
         // in blue rather than primary green — the dragging-to-select state
         // isn't committed yet, so it reads as visually distinct from an
-        // actual (green) selection until mouseup.
+        // actual (green) selection until pointerup.
         !outside &&
           isPendingSelect &&
           "bg-info/40 ring-1 ring-info/50 ring-inset",
@@ -100,18 +110,27 @@ export const TimeCell = React.memo(function TimeCell({
         // of how many, since the emoji row below already shows exactly who.
         !outside && !isSelected && !isPending && count > 0 && "bg-primary/40"
       )}
-      onMouseDown={() => onMouseDown(time)}
-      onMouseEnter={() => {
-        onMouseEnter(time)
+      onPointerDown={(e) =>
+        onPointerDown(time, {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          pointerType: e.pointerType,
+        })
+      }
+      onPointerEnter={(e) => {
+        onPointerEnter(time)
         // Keep tracking hover through a drag too, so the tooltip/sidebar
         // highlight follows the cursor and keeps showing whichever slot
         // it's currently over instead of freezing on the drag's origin.
-        if (!outside) {
+        // Touch pointers don't have a meaningful "hover" outside a drag
+        // (there's no cursor resting on the cell beforehand), so skip it
+        // for those — it would just flicker on/off around each tap.
+        if (!outside && e.pointerType !== "touch") {
           setIsHovered(true)
           onHoverChange(time)
         }
       }}
-      onMouseLeave={clearHover}
+      onPointerLeave={clearHover}
     >
       {!outside && count > 0 && (
         <div className="absolute inset-0 z-10 flex items-center justify-center gap-0.5 overflow-hidden px-0.5">
@@ -130,7 +149,12 @@ export const TimeCell = React.memo(function TimeCell({
         <div
           className={cn(
             "pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 w-max -translate-x-1/2 rounded-md bg-foreground px-2 py-1 text-center text-xs font-medium whitespace-nowrap text-background shadow-md transition-all duration-150",
-            isHovered ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+            // isHovered covers mouse/pen (a real pointerenter fires on
+            // every cell they cross); isDragCursor covers touch, which
+            // doesn't fire that per-cell during a drag — see its prop doc.
+            isHovered || isDragCursor
+              ? "translate-y-0 opacity-100"
+              : "translate-y-1 opacity-0"
           )}
         >
           {label}
