@@ -30,7 +30,7 @@ docker compose up --build
 - Web UI: http://localhost:8080
 - API: http://localhost:3000
 
-`API_BASE_URL` and `WEB_BASE_URL` in `.env` must be URLs reachable from the *browser*, since
+`API_BASE_URL` and `WEB_BASE_URL` in `.env` must be URLs reachable from the _browser_, since
 `API_BASE_URL` is baked into the frontend bundle at build time and `WEB_BASE_URL` is used as
 the API's CORS `ALLOW_ORIGIN`. See `.env.example` for details.
 
@@ -50,11 +50,11 @@ Migrations in `api/migrations` run automatically on startup. The API listens on 
 
 Key environment variables:
 
-| Variable | Description | Default |
-|---|---|---|
-| `DATABASE_URL` | SQLite connection string | — (required) |
-| `ALLOW_ORIGIN` | Origin allowed via CORS | none (CORS disabled) |
-| `EVENT_CLEANUP_INTERVAL_SECS` | How often expired events are swept | `3600` |
+| Variable                      | Description                        | Default              |
+| ----------------------------- | ---------------------------------- | -------------------- |
+| `DATABASE_URL`                | SQLite connection string           | — (required)         |
+| `ALLOW_ORIGIN`                | Origin allowed via CORS            | none (CORS disabled) |
+| `EVENT_CLEANUP_INTERVAL_SECS` | How often expired events are swept | `3600`               |
 
 ### Web (`web/`)
 
@@ -73,18 +73,38 @@ Other useful scripts: `pnpm build`, `pnpm lint`, `pnpm format`, `pnpm typecheck`
 
 The HTTP API is documented in [`api/openapi.yaml`](api/openapi.yaml). Endpoints:
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/events` | Create an event |
-| `GET` | `/events/{event_id}` | Get an event with all attendees and time slots |
-| `POST` | `/events/{event_id}/time-slots` | Submit an attendee's availability |
-| `PUT` | `/events/{event_id}/attendees/{attendee_id}` | Edit an attendee's submission |
-| `DELETE` | `/events/{event_id}/attendees/{attendee_id}` | Delete an attendee's submission |
+| Method   | Path                                         | Description                                    |
+| -------- | -------------------------------------------- | ---------------------------------------------- |
+| `POST`   | `/events`                                    | Create an event                                |
+| `GET`    | `/events/{event_id}`                         | Get an event with all attendees and time slots |
+| `POST`   | `/events/{event_id}/time-slots`              | Submit an attendee's availability              |
+| `PUT`    | `/events/{event_id}/attendees/{attendee_id}` | Edit an attendee's submission                  |
+| `DELETE` | `/events/{event_id}/attendees/{attendee_id}` | Delete an attendee's submission                |
 
 Editing or deleting a submission requires the submission token issued when it was created.
+
+## Testing
+
+Browser end-to-end tests (Playwright) live in `e2e/`:
+
+```bash
+cd e2e
+pnpm install
+pnpm exec playwright install chromium   # first run only
+pnpm test
+```
+
+This boots a real API (against a scratch SQLite DB) and the web dev server
+itself, so no separate setup is needed. See [`TESTING.md`](TESTING.md) for
+the full testing strategy, a feature-by-feature coverage map, and what's
+still just planned (an API-level integration test layer).
 
 ## Tech stack
 
 - **API**: Rust, Axum, SQLx (SQLite), Tokio
 - **Web**: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router
 - **Deployment**: Docker Compose, Caddy (serving the built web app)
+
+## AI usage disclosure
+
+This project is created by a human, who is also responsible for its high-level design. AI is used as a coding agent to help implement that design as well as writing documents, and all AI-generated code is reviewed by a human before being accepted.
