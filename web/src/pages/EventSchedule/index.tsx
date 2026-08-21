@@ -14,6 +14,7 @@ import { clearLastEventId } from "@/lib/session"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
+import { ModeToggle } from "@/components/mode-toggle"
 import { NotFound } from "../NotFound"
 import { AttendeeSidebar, AttendeeSidebarSheet } from "./AttendeeSidebar"
 import { ScheduleGrid } from "./ScheduleGrid"
@@ -92,13 +93,25 @@ export function EventSchedule() {
 
   // Mobile-only: whether the grid is in touch drag-select mode rather than
   // its default native-scroll ("Browse") mode — see useDragSelection's
-  // docstring for why touch needs this distinction. Irrelevant on
-  // mouse/pen, where dragging always works the same way it always has.
+  // docstring for why touch needs this distinction.
   const [touchSelectMode, setTouchSelectMode] = useState(false)
-  const handleToggleTouchSelectMode = useCallback(
-    () => setTouchSelectMode((v) => !v),
-    []
-  )
+
+  // Once there's a submission on record and it's not being edited, the
+  // grid is read-only. Submitted cells need no special-casing to still
+  // read as "submitted" (TimeCell's hasSubmissions check) — they're
+  // already part of `event.attendees` at that point.
+  const isLocked = !!submittedAttendee && !isEditing
+
+  // Entering Select mode while locked is a dead end (every cell's
+  // pointerdown no-ops until Edit is hit) — tell the user why instead of
+  // silently toggling into a mode that does nothing.
+  const handleToggleTouchSelectMode = useCallback(() => {
+    if (isLocked) {
+      toast.error("Click Edit from the sidebar to change your selections")
+      return
+    }
+    setTouchSelectMode((v) => !v)
+  }, [isLocked])
 
   const {
     selectedSlots,
@@ -130,14 +143,11 @@ export function EventSchedule() {
     [currentWeekStart]
   )
 
-  // Stabilized with useCallback: ScheduleGrid and AttendeeSidebar are
-  // memoized, and this component re-renders on every throttled drag frame
-  // (dragEnd lives in useDragSelection, above) — a plain inline function
-  // here would get a new identity on each of those renders and silently
-  // defeat that memoization every time. The functional update form also
-  // means changeWeek never depends on currentWeekStart, so it (and the two
-  // handlers below) stay stable for the component's whole lifetime, not
-  // just between drag frames.
+  // Stabilized with useCallback: this component re-renders on every
+  // throttled drag frame, and a plain inline function would defeat
+  // ScheduleGrid/AttendeeSidebar's memoization every time. The functional
+  // update form also keeps changeWeek independent of currentWeekStart, so
+  // it (and the two handlers below) never need to change identity at all.
   const changeWeek = useCallback(
     (weeks: number) => setCurrentWeekStart((start) => addWeeks(start, weeks)),
     [setCurrentWeekStart]
@@ -153,11 +163,10 @@ export function EventSchedule() {
   )
   const handleOpenSidebar = useCallback(() => setIsSidebarOpen(true), [])
 
-  // Enter edit mode for the existing submission: seed the grid selection
-  // from its current time slots (each one's already a single
-  // SLOT_DURATION_MINUTES bucket — the only kind this app ever writes — so
-  // no expansion/merging is needed to get back to the Set<timestamp> shape
-  // the grid works with).
+  // Enter edit mode: seed the grid selection from the submission's time
+  // slots — each already a single SLOT_DURATION_MINUTES bucket, so no
+  // expansion is needed to get back to the Set<timestamp> shape the grid
+  // works with.
   const handleStartEdit = useCallback(() => {
     if (!submittedAttendee) return
     setSelectedSlots(
@@ -275,6 +284,14 @@ export function EventSchedule() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Pinned to the viewport corner, matching CreateEvent/NotFound,
+          rather than living in the grid's own header. top/right track the
+          header's own p-3 md:p-4 padding so it lines up with its icon
+          buttons; z-40 clears the grid's sticky rows/columns (z-20/z-30). */}
+      <div className="fixed top-3 right-3 z-40 md:top-4 md:right-4">
+        <ModeToggle />
+      </div>
+
       <AttendeeSidebar {...sidebarProps} />
       <AttendeeSidebarSheet
         {...sidebarProps}
@@ -290,6 +307,7 @@ export function EventSchedule() {
         isOutsideRange={isOutsideRange}
         slotEmojis={slotEmojis}
         selectedSlots={selectedSlots}
+        selectionLocked={isLocked}
         isInDragRange={isInDragRange}
         dragType={dragType}
         dragEnd={dragEnd}
@@ -302,12 +320,10 @@ export function EventSchedule() {
         onOpenSidebar={handleOpenSidebar}
       />
 
-      {/* Mobile-only: once there's something selected, the sidebar (where
-          submitting actually happens) is one tap away behind the
-          hamburger — easy to miss on a first visit. This surfaces that
-          next step directly instead of leaving the user to find it.
-          Hidden mid-drag (dragType !== null) so it doesn't appear right
-          where a finger might be dragging near the bottom edge. */}
+      {/* Mobile-only: once something's selected, submitting is one tap
+          away behind the hamburger — easy to miss on a first visit, so
+          surface it directly. Hidden mid-drag so it doesn't appear where
+          a finger might be dragging near the bottom edge. */}
       {selectedSlots.size > 0 && !isSidebarOpen && dragType === null && (
         <button
           type="button"

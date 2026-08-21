@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/base"
 import { slotSelector } from "../utils/time"
+import { selectedOverlay } from "../utils/colors"
 
 // Touch counterpart of drag-selection.spec.ts's "a single click selects
 // exactly that cell" — the grid's default (Browse) mode still needs a
@@ -21,11 +22,11 @@ test.describe("Schedule grid — mobile tap select", () => {
 
     const cell = page.locator(slotSelector("2026-08-09 02:00:00"))
     await cell.tap()
-    await expect(cell).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).toBeVisible()
 
     // Tapping again deselects it (same select/deselect toggle as desktop's
     // single click).
     await cell.tap()
-    await expect(cell).not.toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).not.toBeVisible()
   })
 })

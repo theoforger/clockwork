@@ -51,19 +51,17 @@ async fn main() {
             delete(service::delete_attendee::handler).put(service::update_attendee::handler),
         )
         .with_state(pool)
-        .layer(match env::var("ALLOW_ORIGIN") {
-            Ok(origin) => {
+        .layer({
+            let mut cors = CorsLayer::new()
+                .allow_headers([CONTENT_TYPE, token_header])
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
+            if let Ok(origin) = env::var("ALLOW_ORIGIN") {
                 let value: HeaderValue = origin
                     .parse()
                     .expect("ALLOW_ORIGIN is not a valid header value");
-                CorsLayer::new()
-                    .allow_origin(value)
-                    .allow_headers([CONTENT_TYPE, token_header])
-                    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+                cors = cors.allow_origin(value);
             }
-            Err(_) => CorsLayer::new()
-                .allow_headers([CONTENT_TYPE, token_header])
-                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]),
+            cors
         });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

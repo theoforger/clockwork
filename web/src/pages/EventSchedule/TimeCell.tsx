@@ -7,26 +7,31 @@ import { SLOT_DURATION_MINUTES } from "./constants"
 export interface TimeCellProps {
   time: Date
   outside: boolean
-  // Display glyph (emoji, or a name-initial fallback) of each selected
-  // attendee available in this slot. Also stands in for the attendee
-  // count — its length is that count.
+  // Each available attendee's emoji — its length also doubles as the count.
   emojis: string[]
   isSelected: boolean
+  // True once this browser has a locked-in submission (see index.tsx's
+  // isLocked): pointerdown and the hover-to-select affordance are both
+  // disabled, so browsing can't accidentally start a new selection.
+  locked: boolean
   onPointerDown: (
     time: Date,
     e: { clientX: number; clientY: number; pointerType: string }
   ) => void
   onPointerEnter: (time: Date) => void
   onHoverChange: (time: Date | null) => void
+  // Ref (shared across the whole grid) tracking whichever cell most
+  // recently claimed "hovered" — lets a new claim force-release the
+  // previous one. See the onPointerEnter handler below.
+  hoveredCellRef: React.RefObject<{ ts: number; release: () => void } | null>
   dragPreview: boolean
   dragType: "select" | "deselect" | null
-  // Label for the whole in-progress drag selection, shown instead of this
-  // cell's own 30-minute label while a drag is active.
+  // Whole in-progress drag selection's span, shown instead of this cell's
+  // own 30-minute label while a drag is active.
   dragRangeLabel: string | null
-  // Whether *this* cell is the one the drag is currently extended to.
-  // Mouse/pen already show the tooltip via isHovered (a real pointerenter
-  // fires on every cell they cross), but touch never fires that per-cell
-  // during a drag — this is what shows it there instead.
+  // Whether *this* cell is the drag's current cursor. Mouse/pen get the
+  // tooltip from isHovered instead; touch never fires per-cell
+  // pointerenter during a drag, so this covers that case.
   isDragCursor: boolean
 }
 
@@ -35,9 +40,11 @@ export const TimeCell = React.memo(function TimeCell({
   outside,
   emojis,
   isSelected,
+  locked,
   onPointerDown,
   onPointerEnter,
   onHoverChange,
+  hoveredCellRef,
   dragPreview,
   dragType,
   dragRangeLabel,
@@ -45,23 +52,16 @@ export const TimeCell = React.memo(function TimeCell({
 }: TimeCellProps) {
   const [isHovered, setIsHovered] = React.useState(false)
 
-  // While a cell is mid-drag it's still technically in its pre-drag state
-  // (selected or not — the drag hasn't committed yet), so both of these
-  // suppress the "normal" styling that would otherwise fight the preview
-  // for the same background: the selected ring lingering under a deselect
-  // preview, and the submitted-availability wash swallowing a select
-  // preview entirely (both set `background-color`, and since the wash's
-  // class comes later in the list below, tailwind-merge would let it win
-  // and hide the preview until pointerup without this).
-  const isPendingSelect = dragPreview && dragType === "select"
+  // A cell being dragged over to *deselect* is still technically selected
+  // until the drag commits, but should read red, not blue.
   const isPendingDeselect = dragPreview && dragType === "deselect"
-  const isPending = isPendingSelect || isPendingDeselect
+  const isPendingSelect = dragPreview && dragType === "select"
+  const showSelected = isPendingSelect || (isSelected && !isPendingDeselect)
 
-  const count = emojis.length
+  const hasSubmissions = emojis.length > 0
 
-  // Keyed on the timestamp rather than `time` itself: the grid passes a new
-  // Date object every render, but a given cell's moment in time never
-  // actually changes, so this only needs to recompute once per cell.
+  // Keyed on the timestamp, not `time` itself, since the grid hands us a
+  // new Date every render even though a cell's own moment never changes.
   const timeMs = time.getTime()
   const cellLabel = React.useMemo(() => {
     const start = new Date(timeMs)
@@ -69,70 +69,86 @@ export const TimeCell = React.memo(function TimeCell({
     return `${formatTime(start)} – ${formatTime(end)}`
   }, [timeMs])
 
-  // While a drag is in progress, show the whole selection's span instead of
-  // just this cell's own slot — dragRangeLabel is only non-null then.
+  // Show the whole drag's span instead of this cell's own slot while one's
+  // in progress — dragRangeLabel is only non-null then.
   const label = dragRangeLabel ?? cellLabel
 
   const clearHover = () => {
     setIsHovered(false)
     onHoverChange(null)
+    // Only release the shared claim if it's still ours — a newer cell may
+    // have already stolen it (see onPointerEnter below).
+    if (hoveredCellRef.current?.ts === timeMs) {
+      hoveredCellRef.current = null
+    }
   }
 
   return (
     <div
-      // Read by useAutoScroll (and the touch drag-extension listener in
-      // ScheduleGrid) to find whichever cell is under the pointer after a
-      // scroll or a touch move that didn't fire this cell's own
-      // pointerenter, so the drag selection keeps extending to match.
+      // Read by useAutoScroll (and ScheduleGrid's touch drag-extension
+      // listener) to find whichever cell is under the pointer after a
+      // scroll or touch move that didn't fire this cell's own pointerenter.
       data-time={timeMs}
       className={cn(
         "relative h-11 bg-background transition-colors md:h-8",
         outside && "cursor-not-allowed bg-muted/50",
-        !outside && "z-10 cursor-pointer hover:ring-1 hover:ring-primary/30",
-        // FINAL selection: solid fill + a bold inset ring, so it always
-        // reads as "chosen" instead of blending into the availability wash
-        // below. (inset, not offset — cells are packed edge-to-edge in a
-        // gap-px grid, so an offset ring would spill into neighboring cells.)
+        !outside && "z-10",
+        // Dropped while locked, so a browsing pointer over an
+        // already-submitted grid doesn't look interactive when it isn't.
         !outside &&
-          isSelected &&
-          !isPendingDeselect &&
-          "bg-primary ring-2 ring-primary ring-inset",
-        // GHOST preview: a lighter version of the same solid+ring look, but
-        // in blue rather than primary green — the dragging-to-select state
-        // isn't committed yet, so it reads as visually distinct from an
-        // actual (green) selection until pointerup.
-        !outside &&
-          isPendingSelect &&
-          "bg-info/40 ring-1 ring-info/50 ring-inset",
-        !outside && isPendingDeselect && "bg-destructive/30",
-        // Flat wash for "someone (selected) is available here" — every
-        // slot with at least one attendee gets the same shade regardless
-        // of how many, since the emoji row below already shows exactly who.
-        !outside && !isSelected && !isPending && count > 0 && "bg-primary/40"
+          !locked &&
+          "cursor-pointer hover:ring-1 hover:ring-primary/30",
+        // Flat, opaque base for "someone's submitted here" regardless of
+        // count (the emoji row already shows exactly who). Kept as its own
+        // layer rather than one shared background-color so the
+        // selection/drag overlay below can stay translucent on top of it.
+        !outside && hasSubmissions && "bg-primary"
       )}
-      onPointerDown={(e) =>
+      onPointerDown={(e) => {
+        if (locked) return
         onPointerDown(time, {
           clientX: e.clientX,
           clientY: e.clientY,
           pointerType: e.pointerType,
         })
-      }
+      }}
       onPointerEnter={(e) => {
         onPointerEnter(time)
         // Keep tracking hover through a drag too, so the tooltip/sidebar
-        // highlight follows the cursor and keeps showing whichever slot
-        // it's currently over instead of freezing on the drag's origin.
-        // Touch pointers don't have a meaningful "hover" outside a drag
-        // (there's no cursor resting on the cell beforehand), so skip it
-        // for those — it would just flicker on/off around each tap.
+        // highlight follows the cursor instead of freezing at the drag's
+        // origin. Touch has no meaningful "hover" outside a drag, so skip
+        // it there — it'd just flicker on/off around each tap.
         if (!outside && e.pointerType !== "touch") {
+          // A fast drag can occasionally skip a cell's own pointerleave
+          // (coalesced pointer samples), stranding its tooltip forever.
+          // Self-heal by force-releasing whoever last claimed hover
+          // before claiming it here — the stuck tooltip clears itself on
+          // the next hover anywhere, not just a re-hover of that cell.
+          if (hoveredCellRef.current && hoveredCellRef.current.ts !== timeMs) {
+            hoveredCellRef.current.release()
+          }
+          hoveredCellRef.current = {
+            ts: timeMs,
+            release: () => setIsHovered(false),
+          }
           setIsHovered(true)
           onHoverChange(time)
         }
       }}
       onPointerLeave={clearHover}
     >
-      {!outside && count > 0 && (
+      {/* Translucent overlay stacked over the base background so it stays
+          see-through over a submitted (green) cell. Blue covers both a
+          committed-but-unsubmitted selection and a live drag preview —
+          they read identically until pointerup commits one. */}
+      {!outside && showSelected && (
+        <div className="absolute inset-0 bg-info/40 ring-2 ring-info ring-inset" />
+      )}
+      {!outside && isPendingDeselect && (
+        <div className="absolute inset-0 bg-destructive/40 ring-2 ring-destructive ring-inset" />
+      )}
+
+      {!outside && hasSubmissions && (
         <div className="absolute inset-0 z-10 flex items-center justify-center gap-0.5 overflow-hidden px-0.5">
           {emojis.map((emoji, i) => (
             <span

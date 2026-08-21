@@ -42,8 +42,8 @@ pub async fn create_event(
 /// of its attendees and their time slots. Events with no `ends_before` set
 /// have no defined end and are never swept.
 ///
-/// Cascades manually within one transaction rather than relying on SQLite
-/// foreign-key `ON DELETE CASCADE` — same approach as
+/// Cascades manually within one transaction rather than relying on
+/// `SQLite`'s foreign-key `ON DELETE CASCADE` — same approach as
 /// `delete_attendee_by_event`'s caller, kept consistent here instead of
 /// introducing a second cascade strategy.
 pub async fn delete_expired_events(

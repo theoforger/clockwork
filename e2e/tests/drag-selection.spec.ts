@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures/base"
 import { slotSelector } from "../utils/time"
 import { dragSelect } from "../utils/drag"
+import { selectedOverlay } from "../utils/colors"
 
 // All of these deliberately stay within the grid's naturally-visible
 // viewport (early hours, no scrolling) — see dragSelect's docstring for
@@ -14,7 +15,7 @@ test.describe("Schedule grid — selection", () => {
 
     const cell = page.locator(slotSelector("2026-08-09 02:00:00"))
     await cell.click()
-    await expect(cell).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).toBeVisible()
   })
 
   test("dragging across multiple cells selects the whole range", async ({
@@ -31,9 +32,9 @@ test.describe("Schedule grid — selection", () => {
 
     await dragSelect(page, start, end)
 
-    await expect(start).toHaveClass(/bg-primary/)
-    await expect(mid).toHaveClass(/bg-primary/)
-    await expect(end).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(start)).toBeVisible()
+    await expect(selectedOverlay(mid)).toBeVisible()
+    await expect(selectedOverlay(end)).toBeVisible()
   })
 
   test("dragging back over an already-selected range deselects it", async ({
@@ -48,15 +49,15 @@ test.describe("Schedule grid — selection", () => {
     const end = page.locator(slotSelector("2026-08-09 03:00:00"))
 
     await dragSelect(page, start, end)
-    await expect(start).toHaveClass(/bg-primary/)
-    await expect(end).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(start)).toBeVisible()
+    await expect(selectedOverlay(end)).toBeVisible()
 
     // Dragging the same already-selected range again should deselect it
     // (handleMouseDown picks "deselect" when the anchor cell is already
     // selected).
     await dragSelect(page, start, end)
-    await expect(start).not.toHaveClass(/bg-primary/)
-    await expect(end).not.toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(start)).not.toBeVisible()
+    await expect(selectedOverlay(end)).not.toBeVisible()
   })
 
   test("Escape clears the selection", async ({ page, api }) => {
@@ -66,10 +67,10 @@ test.describe("Schedule grid — selection", () => {
 
     const cell = page.locator(slotSelector("2026-08-09 02:00:00"))
     await cell.click()
-    await expect(cell).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).toBeVisible()
 
     await page.keyboard.press("Escape")
-    await expect(cell).not.toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).not.toBeVisible()
   })
 
   test("Escape does not clear the selection while typing in a text field", async ({
@@ -82,12 +83,12 @@ test.describe("Schedule grid — selection", () => {
 
     const cell = page.locator(slotSelector("2026-08-09 02:00:00"))
     await cell.click()
-    await expect(cell).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).toBeVisible()
 
     const nameInput = page.getByPlaceholder("Your name")
     await nameInput.fill("Someone")
     await nameInput.press("Escape")
-    await expect(cell).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).toBeVisible()
   })
 
   test("the sidebar's 'Clear selection' row clears the selection and disables itself when there's nothing to clear", async ({
@@ -106,7 +107,7 @@ test.describe("Schedule grid — selection", () => {
     await expect(clearRow).toBeEnabled()
 
     await clearRow.click()
-    await expect(cell).not.toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).not.toBeVisible()
     await expect(clearRow).toBeDisabled()
   })
 
@@ -143,11 +144,13 @@ test.describe("Schedule grid — selection", () => {
 
     // The selection should extend well past the single starting cell —
     // count how many cells actually ended up selected.
-    const selectedCount = await page.locator("[data-time].bg-primary").count()
+    const selectedCount = await page
+      .locator("[data-time]:has(> div.bg-info\\/40)")
+      .count()
     expect(selectedCount).toBeGreaterThan(5)
   })
 
-  test("dragging into another day's column stays locked to the day the drag started on", async ({
+  test("dragging into another day's column stays locked to the day the drag started on, clamped to the cursor's row there", async ({
     page,
     api,
   }) => {
@@ -156,19 +159,24 @@ test.describe("Schedule grid — selection", () => {
     await expect(page.getByText("Cross Day Drag")).toBeVisible()
 
     const start = page.locator(slotSelector("2026-08-09 02:00:00"))
-    // Same time-of-day, the very next column over — dragging here should
-    // not select anything on 2026-08-10; the selection should clamp to
-    // the end of 2026-08-09 instead.
-    const nextDayCell = page.locator(slotSelector("2026-08-10 02:00:00"))
+    // A later time-of-day, the very next column over — dragging here
+    // should select 02:00–03:00 on 2026-08-09 (clamped to that row on
+    // the start day), not spill into 2026-08-10 at all.
+    const nextDayCell = page.locator(slotSelector("2026-08-10 03:00:00"))
 
     await dragSelect(page, start, nextDayCell)
 
-    await expect(start).toHaveClass(/bg-primary/)
-    await expect(nextDayCell).not.toHaveClass(/bg-primary/)
-    // 23:30 — the last slot of 2026-08-09 — should be selected instead,
-    // confirming the drag clamped to the end of the day rather than just
-    // stopping short of the next one.
+    await expect(selectedOverlay(start)).toBeVisible()
+    const midOfStartDay = page.locator(slotSelector("2026-08-09 02:30:00"))
+    await expect(selectedOverlay(midOfStartDay)).toBeVisible()
+    const rowClampedOnStartDay = page.locator(
+      slotSelector("2026-08-09 03:00:00")
+    )
+    await expect(selectedOverlay(rowClampedOnStartDay)).toBeVisible()
+    await expect(selectedOverlay(nextDayCell)).not.toBeVisible()
+    // Confirms the clamp landed on the cursor's own row, not the day's
+    // last slot — the bug this behavior once had.
     const lastSlotOfStartDay = page.locator(slotSelector("2026-08-09 23:30:00"))
-    await expect(lastSlotOfStartDay).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(lastSlotOfStartDay)).not.toBeVisible()
   })
 })

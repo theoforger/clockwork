@@ -11,13 +11,13 @@ interface TimePickerProps {
 export function TimePicker({ id, label, time, setTime }: TimePickerProps) {
   return (
     <Field className="w-32">
-      <FieldLabel htmlFor="time-picker-optional">{label}</FieldLabel>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Input
         type="time"
         id={id}
         step="60"
-        value={time ?? ""}
-        onChange={(e) => setTime?.(e.target.value)}
+        value={time}
+        onChange={(e) => setTime(e.target.value)}
         required
         className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
       />

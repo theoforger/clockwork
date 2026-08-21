@@ -1,21 +1,31 @@
 # ⏱️ Clockwork
 
-A When2meet-style scheduling tool. A host creates an event with a date range, shares the link,
-and attendees mark the time slots they're available for. Everyone can see the combined
-availability at a glance.
+A When2meet-style scheduling tool. A host creates an event with a date range, shares the link, and attendees mark the time slots they're available for. Everyone can see the combined availability at a glance.
 
-- **`api/`** — Rust backend (Axum + SQLite)
-- **`web/`** — React + TypeScript frontend (Vite, Tailwind, shadcn/ui)
+## Philosophy
+
+Clockwork is meant to be a simple, modern way to figure out a time that works. Nothing more. It stays away from piling on extra features that get in the way when all
+you want to do is pick a time.
+
+It also doesn't store any private information. There's no user accounts and nothing to log
+into. This keeps the server nice and slim, since it never has to deal with credentials or identities.
+
+**Why Rust Backend?**
+
+No particular reason. Just want to get my hands on the language 😆
 
 ## How it works
 
 1. A host creates an event (name, description, and an allowed date range).
 2. The host shares the event link with attendees.
 3. Each attendee submits a name, an emoji, an optional comment, and the time slots they're
-   free. A submission token (returned to the attendee's browser) lets them edit or delete
-   their own response later, without an account.
+   free. After submission there is an option to edit or delete their own response, without needing an account.
 4. Everyone viewing the event sees every attendee's availability overlaid on one grid.
 5. Events past their end date are periodically swept and removed by a background cleanup job.
+
+## Screenshots
+
+<img src="docs/screenshots/schedule.png" alt="Everyone's availability overlaid on one grid" width="600">
 
 ## Running with Docker Compose
 

@@ -20,12 +20,16 @@ const NotFound = lazy(() =>
 function RouteFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-6 animate-spin text-muted-foreground" />
+      <HugeiconsIcon
+        icon={Loading03Icon}
+        strokeWidth={2}
+        className="size-6 animate-spin text-muted-foreground"
+      />
     </div>
   )
 }
 
-export function App() {
+export default function App() {
   return (
     <TooltipProvider>
       <BrowserRouter>
@@ -41,5 +45,3 @@ export function App() {
     </TooltipProvider>
   )
 }
-
-export default App

@@ -37,7 +37,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -75,8 +80,7 @@ export interface AttendeeSidebarProps {
   ) => Promise<void> | void
   highlightedAttendeeIds: Set<string>
   // Non-null once this browser has a remembered submission for this event
-  // (see useSubmittedAttendee) — locks the form to that submission instead
-  // of a fresh one, unless isEditing is true.
+  // — locks the form to it instead of a fresh one, unless isEditing.
   submittedAttendee: AttendeeResponse | null
   isEditing: boolean
   onStartEdit: () => void
@@ -85,11 +89,10 @@ export interface AttendeeSidebarProps {
   onStartNewEvent: () => void
 }
 
-// Everything that renders inside the sidebar, shared between the always-
-// visible desktop `<aside>` (AttendeeSidebar, below) and the mobile
-// slide-over (AttendeeSidebarSheet, below) — kept as one component so the
-// two shells never drift out of sync, with just their outer container
-// (fixed-width aside vs. a Sheet's panel) differing.
+// Everything that renders inside the sidebar, shared between the desktop
+// `<aside>` (AttendeeSidebar) and the mobile slide-over
+// (AttendeeSidebarSheet) so the two never drift out of sync — only their
+// outer container differs.
 function AttendeeSidebarContent({
   eventName,
   eventDescription,
@@ -131,27 +134,25 @@ function AttendeeSidebarContent({
 
   const descriptionRef = useRef<HTMLParagraphElement>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-  // Whether the clamped description overflows 2 lines, i.e. needs a "Read
-  // more" toggle. Measured off `eventDescription` only, not
-  // `isDescriptionExpanded` — re-measuring on expand/collapse would read
-  // the now-unclamped element and make the button disappear once clicked.
+  // Whether the clamped description needs a "Read more" toggle. Measured
+  // off `eventDescription` only — re-measuring on expand/collapse would
+  // read the now-unclamped element and make the button disappear.
   const [isDescriptionClamped, setIsDescriptionClamped] = useState(false)
   useLayoutEffect(() => {
     const el = descriptionRef.current
     setIsDescriptionClamped(!!el && el.scrollHeight > el.clientHeight)
   }, [eventDescription])
 
-  // Once a submission is on record, the form displays and locks to that
-  // data instead of the (untouched) local state above — unless editing,
-  // in which case it behaves like a fresh submission seeded from it.
+  // Once a submission is on record, the form locks to that data instead of
+  // the local state above — unless editing, where it behaves like a fresh
+  // submission seeded from it.
   const isLocked = !!submittedAttendee && !isEditing
   const displayName = isLocked ? submittedAttendee.name : name
   const displayEmoji = isLocked ? submittedAttendee.emoji : emoji
   const displayComment = isLocked ? (submittedAttendee.comment ?? "") : comment
 
-  // Re-searching is wasted work on every hover-driven re-render (this
-  // component re-renders whenever highlightedAttendeeIds changes), since
-  // attendees/search themselves haven't changed on those renders.
+  // This component re-renders on every hover (highlightedAttendeeIds
+  // changes), so avoid re-searching when attendees/search themselves haven't.
   const searchedAttendees = useMemo(
     () =>
       attendees.filter((a) =>
@@ -200,7 +201,7 @@ function AttendeeSidebarContent({
             type="button"
             disabled={isLocked}
             className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-md text-xl transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40",
+              "inline-flex size-8 items-center justify-center rounded-md text-xl transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40",
               displayEmoji === e && "bg-muted ring-2 ring-primary"
             )}
             onClick={() => setEmoji(e === emoji ? "" : e)}
@@ -386,11 +387,8 @@ function AttendeeSidebarContent({
             <TooltipContent side="bottom">Select none</TooltipContent>
           </Tooltip>
         </div>
-        {/* min-h-0: same automatic-minimum-size override as the sidebar's
-            own container — ScrollArea's Root is just a block-level flex
-            item, so without this its content (the full attendee list)
-            would win over flex-1 and keep it from ever shrinking down to
-            scrollable size. */}
+        {/* min-h-0: without it, ScrollArea's content (the full attendee
+            list) wins over flex-1 and it never shrinks to scrollable size. */}
         <ScrollArea className="-mr-4 min-h-0 flex-1">
           <div className="space-y-2 pr-4">
             {searchedAttendees.map((a) => {
@@ -398,11 +396,9 @@ function AttendeeSidebarContent({
               return (
                 <HoverCard key={a.id} openDelay={100} closeDelay={100}>
                   <HoverCardTrigger asChild>
-                    {/* A <label> forwards clicks anywhere in it to the
-                        nested Checkbox's underlying <button> (a labelable
-                        element), so the whole row toggles without any
-                        hand-rolled click/keyboard handling here — the
-                        Checkbox already gets Enter/Space for free. */}
+                    {/* <label> forwards clicks anywhere in it to the
+                        nested Checkbox, so the whole row toggles without
+                        hand-rolled click/keyboard handling. */}
                     <label
                       className={cn(
                         "flex cursor-pointer items-center gap-2 rounded-lg border p-2 transition-colors duration-150 hover:bg-accent",
@@ -415,7 +411,7 @@ function AttendeeSidebarContent({
                         checked={isSelected}
                         onCheckedChange={() => onToggleAttendee(a.id)}
                       />
-                      <Avatar className="h-8 w-8">
+                      <Avatar className="size-8">
                         <AvatarFallback className="text-sm">
                           {a.emoji}
                         </AvatarFallback>
@@ -478,13 +474,10 @@ export const AttendeeSidebar = memo(function AttendeeSidebar(
   props: AttendeeSidebarProps
 ) {
   return (
-    // min-h-0 overrides the automatic (content-based) minimum size flex
-    // items get by default — without it, this aside's own min-content
-    // height (header + form + full attendee list + footer, unclamped)
-    // would win over the stretch-to-h-screen height it gets from being a
-    // row-flex item in EventSchedule's container, so it'd grow taller than
-    // the viewport instead of actually shrinking and letting the attendee
-    // list section below scroll internally.
+    // min-h-0 overrides the default content-based minimum height flex
+    // items get — without it, this aside's own min-content height would
+    // win over its stretch-to-h-screen height, growing taller than the
+    // viewport instead of letting the attendee list scroll internally.
     <aside className="hidden h-full min-h-0 w-80 shrink-0 flex-col gap-4 border-r bg-card p-4 shadow-sm md:flex">
       <AttendeeSidebarContent {...props} />
     </aside>
@@ -513,12 +506,10 @@ export const AttendeeSidebarSheet = memo(function AttendeeSidebarSheet({
         // (top-4 right-4), which would otherwise sit right on top of the
         // "New Event" button at the start of this content's header row.
         className="flex w-3/4 flex-col gap-4 p-4 pt-12 sm:max-w-xs"
-        // Radix's default open-focus behavior would land on the "New
-        // Event" button — the first focusable descendant, and it's
-        // wrapped in a Tooltip. Focusing it opens that tooltip, which then
-        // swallows the *first* Escape press to dismiss itself instead of
-        // closing the sheet. Skip the auto-focus entirely rather than
-        // fight over which element should get it.
+        // Radix's default open-focus would land on the "New Event" button
+        // (the first focusable descendant), opening its Tooltip — which
+        // then swallows the first Escape press instead of closing the
+        // sheet. Skip auto-focus entirely rather than fight over it.
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Visually hidden: the content below already shows the event name

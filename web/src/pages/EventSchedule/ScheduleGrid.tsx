@@ -13,7 +13,6 @@ import {
   InformationCircleIcon,
   Menu01Icon,
 } from "@hugeicons/core-free-icons"
-import { ModeToggle } from "@/components/mode-toggle"
 import { cn } from "@/lib/utils"
 import { formatTime } from "@/lib/date-utils"
 import { TimeCell } from "./TimeCell"
@@ -40,11 +39,13 @@ export interface ScheduleGridProps {
   isOutsideRange: (time: Date) => boolean
   slotEmojis: Map<number, string[]>
   selectedSlots: Set<number>
+  // True once there's a locked-in submission (see index.tsx's isLocked) —
+  // cells stop responding to pointerdown until Edit is hit.
+  selectionLocked: boolean
   isInDragRange: (time: Date) => boolean
   dragType: "select" | "deselect" | null
-  // The cell the drag is currently extended to — see useDragSelection's
-  // return-value comment for why this needs to reach TimeCell directly
-  // rather than relying on that cell's own pointerenter, for touch.
+  // The cell the drag is currently extended to — needs to reach TimeCell
+  // directly for touch, which never fires a per-cell pointerenter.
   dragEnd: Date | null
   dragRangeLabel: string | null
   onPointerDown: (
@@ -72,6 +73,7 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
   isOutsideRange,
   slotEmojis,
   selectedSlots,
+  selectionLocked,
   isInDragRange,
   dragType,
   dragEnd,
@@ -85,10 +87,17 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
 }: ScheduleGridProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
-  // Computed once per render rather than per-cell below — every cell needs
-  // to compare its own timestamp against this same value to know whether
-  // *it* is the drag's current cursor (see the `isDragCursor` prop on
-  // TimeCell).
+  // Shared by every TimeCell so one cell's pointerenter can force-release
+  // a stuck hover state left behind by another — see TimeCell's own
+  // comment for why. A ref, not state: it's only read when a cell claims
+  // hover, never needs to drive a render itself.
+  const hoveredCellRef = React.useRef<{
+    ts: number
+    release: () => void
+  } | null>(null)
+
+  // Computed once here rather than per-cell — every cell compares its own
+  // timestamp against this to know if it's the drag's current cursor.
   const dragEndTs = dragEnd ? dragEnd.getTime() : null
 
   // Lets a drag-to-select gesture keep extending past the visible grid
@@ -96,14 +105,12 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
   // drive `onPointerEnter` itself rather than relying on real hover events.
   useAutoScroll(scrollRef, dragType !== null, onPointerEnter)
 
-  // Touch's equivalent of the above: while actively drag-selecting with a
-  // finger, per-cell pointerenter never fires for the cells the finger
-  // physically moves over (the browser implicitly captures the pointer to
-  // the cell it started on) — so resolve whichever cell now sits under the
-  // finger on every move, the same `elementFromPoint` + `data-time` trick
-  // useAutoScroll uses for the "scroll moved the grid under a stationary
-  // cursor" case. Only wired up in Select mode: in Browse mode the grid's
-  // native touch scrolling needs pointermove for itself.
+  // Touch's equivalent of the above: a finger dragging across cells never
+  // fires their individual pointerenter (the browser implicitly captures
+  // the pointer to the cell it started on), so resolve whichever cell is
+  // under the finger on every move instead, via the same `elementFromPoint`
+  // trick useAutoScroll uses. Only wired up in Select mode — in Browse mode
+  // the grid's native touch scrolling needs pointermove for itself.
   React.useEffect(() => {
     if (!touchSelectMode || dragType === null) return
     const container = scrollRef.current
@@ -123,14 +130,10 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
 
   return (
     <main className="flex flex-1 flex-col overflow-hidden">
-      {/* A single row, always — never flex-wrap here. With this many
-          controls (hamburger, nav, title, info, mode toggles) there's no
-          width where wrapping to a second row looks intentional, and
-          wrapping was also flaky in practice: it kicked in or not
-          depending on how wide the current date-range title happened to
-          render. The title (flex-1 min-w-0 truncate, below) is the one
-          element that absorbs the slack instead, so the row's total width
-          is otherwise fixed and this can never wrap. */}
+      {/* Never flex-wrap: with this many controls, no width makes a second
+          row look intentional, and wrapping was flaky in practice anyway.
+          The title (flex-1 min-w-0 truncate, below) absorbs the slack
+          instead, so the row's width is otherwise fixed. */}
       <header className="flex items-center gap-2 border-b p-3 md:p-4">
         <Button
           variant="outline"
@@ -170,25 +173,26 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
             selection.
           </TooltipContent>
         </Tooltip>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant={touchSelectMode ? "default" : "outline"}
-            size="sm"
-            className="md:hidden"
-            onClick={onToggleTouchSelectMode}
-          >
-            {touchSelectMode ? "Selecting" : "Select"}
-          </Button>
-          <ModeToggle />
-        </div>
+        <Button
+          variant={touchSelectMode ? "default" : "outline"}
+          size="sm"
+          // mr-12 clears the mode toggle, which floats fixed to the
+          // viewport's top-right corner (see index.tsx) rather than
+          // sitting in this header — without it the two overlap on
+          // mobile, where this button would otherwise butt right up
+          // against the same corner.
+          className="mr-12 shrink-0 md:hidden"
+          onClick={onToggleTouchSelectMode}
+        >
+          {touchSelectMode ? "Selecting" : "Select"}
+        </Button>
       </header>
 
-      {/* Top/left spacing lives on the grid as margins, not container
-          padding: `position: sticky` pins to the container's padding edge,
-          so padding there would leave a gap the sticky weekday row/hour
-          column locks to instead of the true edge, letting scrolling
-          content show through. Margins scroll away cleanly instead. Right
-          and bottom have no sticky element, so they stay as padding. */}
+      {/* Top/left spacing is margin, not container padding: `sticky` pins to
+          the container's padding edge, so padding there would leave a gap
+          the sticky weekday row/hour column locks to, letting content show
+          through. Margins scroll away cleanly instead. Right/bottom have no
+          sticky element, so they stay padding. */}
       <div
         ref={scrollRef}
         className="flex-1 overflow-auto pr-4 pb-4 select-none"
@@ -196,21 +200,17 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
         <div
           className={cn(
             "mt-4 ml-4 grid min-w-200 grid-cols-[60px_repeat(7,1fr)] gap-px border bg-border",
-            // Select mode needs to own every touch move on the grid itself
-            // (see the effect above) — disabling native panning here is
-            // what stops the browser from treating the gesture as a
-            // scroll instead. Only toggled between gestures (from the
-            // Browse/Select button), never mid-drag, since browsers don't
-            // reliably honor a touch-action change once a touch has
-            // already started.
+            // Select mode owns every touch move itself (see the effect
+            // above); disabling native panning is what stops the browser
+            // treating it as a scroll instead. Only toggled between
+            // gestures — browsers don't reliably honor a touch-action
+            // change once a touch has already started.
             touchSelectMode && "touch-none"
           )}
         >
-          {/* Pinned to both edges of the scroll container it sits in the
-              corner of — the intersection of the sticky weekday row below
-              and the sticky hour-label column further down, so it needs
-              to out-rank both (z-30 vs. their z-20) or one would show
-              through it at the corner. */}
+          {/* Sits at the intersection of the sticky weekday row and hour
+              column below, so it must out-rank both (z-30 vs. z-20) or one
+              would show through at the corner. */}
           <div className="sticky top-0 left-0 z-30 bg-background p-2" />
 
           {weekDays.map((day) => (
@@ -229,11 +229,9 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
             <React.Fragment key={hour}>
               {[0, SLOT_DURATION_MINUTES].map((minute) => (
                 <React.Fragment key={`${hour}:${minute}`}>
-                  {/* Pinned to the left edge of the scroll container, the
-                      same way the weekday row above is pinned to the top
-                      — so the hour-of-day label stays readable while
-                      scrolling horizontally through the week instead of
-                      scrolling out of view with the rest of that row. */}
+                  {/* Pinned left, like the weekday row is pinned to the
+                      top, so the hour label stays readable while scrolling
+                      horizontally through the week. */}
                   <div className="sticky left-0 z-20 flex h-11 items-center justify-end bg-background pr-2 text-[10px] text-muted-foreground md:h-8">
                     {minute === 0 ? HOUR_LABELS[hour] : ""}
                   </div>
@@ -257,9 +255,11 @@ export const ScheduleGrid = React.memo(function ScheduleGrid({
                         outside={outside}
                         emojis={emojis}
                         isSelected={isSelected}
+                        locked={selectionLocked}
                         onPointerDown={onPointerDown}
                         onPointerEnter={onPointerEnter}
                         onHoverChange={onHoverSlot}
+                        hoveredCellRef={hoveredCellRef}
                         dragPreview={inDragRange}
                         dragType={dragType}
                         dragRangeLabel={dragRangeLabel}

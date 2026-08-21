@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/base"
 import { apiDateAt, slotSelector } from "../utils/time"
+import { SUBMITTED_CLASS } from "../utils/colors"
 import type { ApiClient } from "../fixtures/api"
 
 async function seedTwoOverlappingAttendees(api: ApiClient, eventId: string) {
@@ -151,8 +152,8 @@ test.describe("Attendee filtering", () => {
     await expect(overlapCell.getByText("🦊")).toBeVisible()
     await expect(overlapCell.getByText("🐶")).toBeVisible()
 
-    // A slot nobody submitted shows neither wash nor emoji.
+    // A slot nobody submitted shows neither the green base nor an emoji.
     const emptyCell = page.locator(slotSelector("2026-08-09 05:00:00"))
-    await expect(emptyCell).not.toHaveClass(/bg-primary\/40/)
+    await expect(emptyCell).not.toHaveClass(SUBMITTED_CLASS)
   })
 })

@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/base"
 import { slotSelector } from "../utils/time"
+import { SUBMITTED_CLASS } from "../utils/colors"
 
 test.describe("Submitting availability", () => {
   test("submitting with no name shows a toast and doesn't submit", async ({
@@ -78,7 +79,7 @@ test.describe("Submitting availability", () => {
 
     await expect(page.getByText("Selection submitted!")).toBeVisible()
     await expect(page.getByText("Alice")).toBeVisible()
-    await expect(cell).toHaveClass(/bg-primary\/40/)
+    await expect(cell).toHaveClass(SUBMITTED_CLASS)
 
     // Locked: fields disabled, Submit gone, Edit/Delete shown instead.
     await expect(page.getByPlaceholder("Your name")).toBeDisabled()

@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures/base"
 import { slotSelector } from "../utils/time"
 import { touchDragSelect } from "../utils/drag-touch"
+import { selectedOverlay } from "../utils/colors"
 
 // Touch counterpart of drag-selection.spec.ts's multi-cell drag test —
 // exercises Select mode specifically (see useDragSelection's docstring for
@@ -24,12 +25,12 @@ test.describe("Schedule grid — mobile touch drag select", () => {
 
     await touchDragSelect(page, start, end)
 
-    await expect(start).toHaveClass(/bg-primary/)
-    await expect(mid).toHaveClass(/bg-primary/)
-    await expect(end).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(start)).toBeVisible()
+    await expect(selectedOverlay(mid)).toBeVisible()
+    await expect(selectedOverlay(end)).toBeVisible()
   })
 
-  test("dragging into another day's column stays locked to the day the drag started on", async ({
+  test("dragging into another day's column stays locked to the day the drag started on, clamped to the cursor's row there", async ({
     page,
     api,
   }) => {
@@ -40,16 +41,20 @@ test.describe("Schedule grid — mobile touch drag select", () => {
     await expect(page.getByRole("button", { name: "Selecting" })).toBeVisible()
 
     const start = page.locator(slotSelector("2026-08-09 02:00:00"))
-    // Same time-of-day, the next column over — both columns are within
+    // A later time-of-day, the next column over — both columns are within
     // the naturally-visible mobile viewport without scrolling.
-    const nextDayCell = page.locator(slotSelector("2026-08-10 02:00:00"))
+    const nextDayCell = page.locator(slotSelector("2026-08-10 03:00:00"))
 
     await touchDragSelect(page, start, nextDayCell)
 
-    await expect(start).toHaveClass(/bg-primary/)
-    await expect(nextDayCell).not.toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(start)).toBeVisible()
+    const rowClampedOnStartDay = page.locator(
+      slotSelector("2026-08-09 03:00:00")
+    )
+    await expect(selectedOverlay(rowClampedOnStartDay)).toBeVisible()
+    await expect(selectedOverlay(nextDayCell)).not.toBeVisible()
     const lastSlotOfStartDay = page.locator(slotSelector("2026-08-09 23:30:00"))
-    await expect(lastSlotOfStartDay).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(lastSlotOfStartDay)).not.toBeVisible()
   })
 
   test("the range tooltip stays visible on the cell a touch drag is currently extended to", async ({

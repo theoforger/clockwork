@@ -1,41 +1,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { addMinutes, isSameDay, startOfDay } from "date-fns"
+import {
+  addMinutes,
+  isSameDay,
+  setHours,
+  setMinutes,
+  startOfDay,
+} from "date-fns"
 import { isEditableTarget } from "@/lib/dom"
 import { formatTime } from "@/lib/date-utils"
 import { SLOT_DURATION_MINUTES } from "./constants"
 
-// How far (in px) a touch pointer can move between its down and up before
-// a tap-in-Browse-mode is treated as "the user was scrolling, not
-// selecting" and the pending single-cell toggle is discarded. Mouse/pen
-// drags never hit this path — see the touchSelectMode check below.
+// How far (in px) a touch pointer can move between down and up before a
+// tap-in-Browse-mode counts as scrolling rather than selecting, discarding
+// the pending single-cell toggle. Mouse/pen never hit this path.
 const TOUCH_TAP_MOVE_THRESHOLD = 10
 
-// The start of `day`'s last slot (23:30, for the grid's fixed 30-minute
-// slots) — the far edge a drag can reach without crossing into the next
-// day. See clampToDay below.
-function lastSlotOf(day: Date): Date {
-  return addMinutes(startOfDay(day), 24 * 60 - SLOT_DURATION_MINUTES)
-}
-
-// Pins `time` to whichever edge of `day` it overshot — the grid's columns
-// are days, and a drag is meant to select a span *within* one, not sweep
-// across several just because the pointer crossed a column boundary.
+// Pins `time` onto `day`'s column while keeping its own row (time-of-day)
+// — the grid's columns are days, and a drag is meant to select a span
+// *within* one, so crossing into an adjacent day's column should extend
+// the selection to whichever row the cursor is level with there, not
+// jump to that day's very first/last slot regardless of how far up or
+// down the cursor actually is.
 function clampToDay(day: Date, time: Date): Date {
-  return time.getTime() > day.getTime() ? lastSlotOf(day) : startOfDay(day)
+  return setMinutes(
+    setHours(startOfDay(day), time.getHours()),
+    time.getMinutes()
+  )
 }
 
 /**
  * Manages the set of selected time slots and the click-and-drag
  * select/deselect interaction used to build that set.
  *
- * `touchSelectMode` distinguishes the two ways a touch pointer can start a
- * gesture on the grid (see ScheduleGrid's Browse/Select toggle): in Browse
- * mode the grid still scrolls natively, so a touch "drag" is ambiguous
- * until release — only a in-place tap should commit a selection, not a
- * swipe that happened to start on a cell. In Select mode the grid disables
- * native panning (`touch-action: none`), so every touch movement is a real
- * drag-select gesture and no threshold applies. Mouse/pen pointers ignore
- * this distinction entirely, matching the app's original desktop behavior.
+ * `touchSelectMode` distinguishes the two ways a touch gesture can start
+ * (see ScheduleGrid's Browse/Select toggle): in Browse mode the grid still
+ * scrolls natively, so a touch "drag" is ambiguous until release — only an
+ * in-place tap should commit a selection, not a swipe that started on a
+ * cell. In Select mode native panning is disabled, so every touch move is
+ * a real drag-select gesture and no threshold applies. Mouse/pen ignore
+ * this distinction entirely.
  */
 export function useDragSelection(
   isOutsideRange: (time: Date) => boolean,
@@ -48,13 +51,11 @@ export function useDragSelection(
   const [dragEnd, setDragEnd] = useState<Date | null>(null)
   const [dragType, setDragType] = useState<"select" | "deselect" | null>(null)
 
-  // `handlePointerEnter` fires once per cell the pointer crosses, which can
-  // happen many times within a single animation frame during a fast drag —
-  // and since the range below is a flat timestamp comparison (it can span
-  // most of a day, now that it's clamped to one — see clampToDay), each
-  // update can flip dragPreview for a large slice of the grid at once.
-  // Coalesce updates to at most one per frame via a ref + rAF, so React
-  // only re-renders once per paint instead of once per raw pointer event.
+  // `handlePointerEnter` can fire many times within a single animation
+  // frame during a fast drag, and each update can flip dragPreview for a
+  // large slice of the grid (it's clamped to one day — see clampToDay).
+  // Coalesce to at most one update per frame via a ref + rAF, so React
+  // re-renders once per paint instead of once per raw pointer event.
   const rafRef = useRef<number | null>(null)
   const pendingDragEndRef = useRef<Date | null>(null)
 
@@ -113,7 +114,10 @@ export function useDragSelection(
   }, [isDragging, dragStart, dragEnd])
 
   const handlePointerDown = useCallback(
-    (time: Date, e: { clientX: number; clientY: number; pointerType: string }) => {
+    (
+      time: Date,
+      e: { clientX: number; clientY: number; pointerType: string }
+    ) => {
       if (isOutsideRange(time)) return
 
       // Starting a fresh drag — drop anything left over from a previous one.
@@ -143,12 +147,10 @@ export function useDragSelection(
       if (isOutsideRange(time)) return
 
       // Locked to the day the drag started on — entering a different
-      // day's column clamps to that day's first/last slot instead of
-      // extending the selection into it. Applies uniformly regardless of
-      // *why* this cell was entered (a real pointerenter, auto-scroll, or
-      // touch's own extension path — see useAutoScroll and ScheduleGrid,
-      // both of which funnel through this same function), so there's one
-      // place enforcing it rather than three.
+      // day's column clamps to the same row there instead (see
+      // clampToDay). Applies regardless of *why* this cell was entered (a
+      // real pointerenter, auto-scroll, or touch's extension path all
+      // funnel through this one function), so it's enforced in one place.
       const clamped = isSameDay(time, dragStart)
         ? time
         : clampToDay(dragStart, time)
@@ -184,7 +186,11 @@ export function useDragSelection(
     // selecting — discard it rather than toggling the cell it began on.
     const isTouchInBrowseMode =
       activePointerTypeRef.current === "touch" && !touchSelectMode
-    if (isTouchInBrowseMode && dragStartPosRef.current && lastPointerPosRef.current) {
+    if (
+      isTouchInBrowseMode &&
+      dragStartPosRef.current &&
+      lastPointerPosRef.current
+    ) {
       const dx = lastPointerPosRef.current.x - dragStartPosRef.current.x
       const dy = lastPointerPosRef.current.y - dragStartPosRef.current.y
       if (Math.hypot(dx, dy) > TOUCH_TAP_MOVE_THRESHOLD) {
@@ -223,11 +229,10 @@ export function useDragSelection(
     setDragType(null)
   }, [dragStart, dragEnd, dragType, touchSelectMode])
 
-  // Tracked on `window` (not the grid element) so the drag ends reliably no
-  // matter where the pointer is by then, instead of canceling as soon as it
-  // leaves the grid — which made fast/far drags feel interrupted. Also
-  // treats a pointermove with no button/contact held as an implicit release,
-  // to catch releases outside the browser window (no pointerup fires there).
+  // Tracked on `window`, not the grid element, so the drag ends reliably
+  // wherever the pointer is instead of canceling as soon as it leaves the
+  // grid. Also treats a buttonless pointermove as an implicit release, to
+  // catch releases outside the browser window (no pointerup fires there).
   useEffect(() => {
     if (!isDragging) return
 
@@ -251,12 +256,11 @@ export function useDragSelection(
     selectedSlots,
     setSelectedSlots,
     dragType,
-    // The cell the drag is currently extended to — exposed so a cell can
-    // tell whether *it* is that one, and show the range tooltip there.
-    // Mouse/pen already get this for free from their own real pointerenter
-    // (see TimeCell's isHovered), but touch never fires that per-cell
-    // event during a drag (see the docstring above), so it needs this
-    // instead to know when it's the one that should be showing the label.
+    // The cell the drag is currently extended to — lets a cell tell
+    // whether it's the one that should show the range tooltip. Mouse/pen
+    // get this for free from their own pointerenter (TimeCell's
+    // isHovered); touch doesn't fire that per-cell during a drag, so it
+    // needs this instead.
     dragEnd,
     isInDragRange,
     dragRangeLabel,

@@ -28,7 +28,11 @@ export function useAutoScroll(
   active: boolean,
   onCellHover: (time: Date) => void
 ) {
-  const pointerRef = useRef({ x: 0, y: 0 })
+  // null until the first real pointermove — a drag's pointerdown fires
+  // before this effect's listener attaches, so a default like {x: 0, y: 0}
+  // would read as "top-left corner" (inside the top edge's scroll zone)
+  // and cause a spurious scroll-up pulse at the start of every drag.
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!active) return
@@ -53,7 +57,7 @@ export function useAutoScroll(
     let rafId: number
     const tick = () => {
       const container = containerRef.current
-      if (container) {
+      if (container && pointerRef.current) {
         const rect = container.getBoundingClientRect()
         const { x, y } = pointerRef.current
 
@@ -73,6 +77,10 @@ export function useAutoScroll(
     return () => {
       window.removeEventListener("pointermove", handlePointerMove)
       cancelAnimationFrame(rafId)
+      // Reset for the next drag — otherwise it'd start out seeded with
+      // wherever this one happened to end, which is just as wrong a
+      // default as (0, 0) was.
+      pointerRef.current = null
     }
   }, [active, containerRef, onCellHover])
 }

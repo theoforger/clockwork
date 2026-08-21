@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/base"
 import { apiDateAt, slotSelector } from "../utils/time"
+import { SUBMITTED_CLASS, selectedOverlay } from "../utils/colors"
 
 test.describe("Editing and deleting own submission", () => {
   test("a returning browser sees its submission locked to the form", async ({
@@ -57,7 +58,10 @@ test.describe("Editing and deleting own submission", () => {
     const nameInput = page.getByPlaceholder("Your name")
     await expect(nameInput).toBeEnabled()
     await expect(nameInput).toHaveValue("Alice")
-    await expect(cell).toHaveClass(/bg-primary /)
+    // Still submitted (green base, unchanged until Save) *and* back in the
+    // draft selection (blue overlay) now that Edit reseeded it.
+    await expect(cell).toHaveClass(SUBMITTED_CLASS)
+    await expect(selectedOverlay(cell)).toBeVisible()
 
     await nameInput.fill("Alice Draft Edit")
     await page.getByRole("button", { name: "Cancel" }).click()

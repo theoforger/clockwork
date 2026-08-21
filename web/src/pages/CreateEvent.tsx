@@ -1,5 +1,5 @@
-import * as React from "react"
-import { useState } from "react"
+import type { SubmitEvent } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { format } from "date-fns"
 import { type DateRange } from "react-day-picker"
@@ -28,10 +28,9 @@ import { toast } from "sonner"
 import { formatAPIDate, formatTime } from "@/lib/date-utils"
 import { getLastEventId } from "@/lib/session"
 
-// Returns a local Date rather than an API-formatted string — shared by the
-// submit payload (formatAPIDate'd there) and the human-readable "starts no
-// earlier than..." description below, so both read the same combination
-// logic instead of two copies drifting apart.
+// Returns a local Date rather than an API-formatted string, so both the
+// submit payload and the human-readable description below share the same
+// combination logic instead of drifting apart.
 function combineDateAndTime(
   date: Date | undefined,
   time: string
@@ -49,38 +48,35 @@ function combineDateAndTime(
 export function CreateEvent() {
   const navigate = useNavigate()
 
-  // If this browser already has an active event (from a previous visit),
-  // jump straight back into it instead of showing a blank create form.
-  // Read once via a lazy initializer so the redirect decision is made
-  // before the first paint — no flash of the form in between.
+  // If this browser already has an active event, jump straight back into
+  // it instead of showing a blank form. Lazy initializer so the redirect
+  // decision is made before the first paint — no flash of the form.
   const [lastEventId] = useState(() => getLastEventId())
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (lastEventId) navigate(`/${lastEventId}`, { replace: true })
   }, [lastEventId, navigate])
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(
-    undefined
-  )
-  const [startsAt, setStartsAt] = React.useState("10:00")
-  const [endsAt, setEndsAt] = React.useState("10:00")
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+  const [startsAt, setStartsAt] = useState("10:00")
+  const [endsAt, setEndsAt] = useState("10:00")
 
   // Combined once here rather than separately in the submit handler and
   // the description text below, so both always agree.
-  const startsAfterDate = React.useMemo(
+  const startsAfterDate = useMemo(
     () => combineDateAndTime(dateRange?.from, startsAt),
     [dateRange?.from, startsAt]
   )
-  const endsBeforeDate = React.useMemo(
+  const endsBeforeDate = useMemo(
     () => combineDateAndTime(dateRange?.to, endsAt),
     [dateRange?.to, endsAt]
   )
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function handleSubmit(e: React.SubmitEvent) {
+  async function handleSubmit(e: SubmitEvent) {
     e.preventDefault()
 
     if (

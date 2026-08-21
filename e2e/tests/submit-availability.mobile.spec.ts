@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/base"
 import { slotSelector } from "../utils/time"
+import { selectedOverlay } from "../utils/colors"
 
 // The one flow that most needs to work end-to-end on mobile: tap-select a
 // slot, open the sidebar sheet, fill the form, submit.
@@ -18,7 +19,7 @@ test.describe("Submitting availability — mobile", () => {
     // effect, which only matters if the sheet was already open).
     const cell = page.locator(slotSelector("2026-08-09 02:00:00"))
     await cell.tap()
-    await expect(cell).toHaveClass(/bg-primary/)
+    await expect(selectedOverlay(cell)).toBeVisible()
 
     // The floating "1 slot selected" button is the surfaced next step
     // after selecting — use it instead of the hamburger directly, so this
