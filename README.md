@@ -116,3 +116,7 @@ itself, so no separate setup is needed.
 ## AI usage disclosure
 
 This project is created by a human, who is also responsible for its high-level design. AI is used as a coding agent to help implement that design as well as writing documents, and all AI-generated code is reviewed by a human before being accepted.
+
+## License
+
+[AGPLv3](LICENSE)
