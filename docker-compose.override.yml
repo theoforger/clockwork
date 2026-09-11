@@ -1,0 +1,16 @@
+# Network override for my personal deployment setup
+
+services:
+  api:
+    networks:
+      - default
+      - edge
+
+  web:
+    networks:
+      - default
+      - edge
+
+networks:
+  edge:
+    external: true
